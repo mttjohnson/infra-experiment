@@ -35,7 +35,6 @@
 
     # Set the hostname
     - { ansible.builtin.import_role: { name: mttjohnson.infra.hostname }, tags: hostname }
-    - { ansible.builtin.import_role: { name: mttjohnson.infra.avahi_hostname }, tags: avahi_hostname }
 
     # ----- Useful Tools -----
     - name: "snap :: install common packages"

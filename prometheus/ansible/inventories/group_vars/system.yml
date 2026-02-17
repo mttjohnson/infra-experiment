@@ -6,4 +6,5 @@ hostsfile_hosts: []
 additional_hostsfile_hosts:
   - { ip: "127.0.0.1", hostname: "{{ fq_hostname }} {{ inventory_hostname }}" }
 
+acme_dns_api_url: https://assist-req.deney.io
 certbot_email: matt@evdat.com
