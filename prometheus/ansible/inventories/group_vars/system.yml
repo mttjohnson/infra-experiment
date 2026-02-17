@@ -1,0 +1,9 @@
+---
+acme_dns_reg_run_registration: true
+certbot_generate_and_issue_cert: true
+
+hostsfile_hosts: []
+additional_hostsfile_hosts:
+  - { ip: "127.0.0.1", hostname: "{{ fq_hostname }} {{ inventory_hostname }}" }
+
+certbot_email: matt@evdat.com

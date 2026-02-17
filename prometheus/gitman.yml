@@ -1,0 +1,28 @@
+location: dependencies
+sources:
+  - repo: git@github.com:mttjohnson/infra-components.git
+    name: mttjohnson_infra
+    rev: main
+    type: git
+    params:
+    sparse_paths:
+      -
+    links:
+      -
+    scripts:
+      -
+default_group: ''
+groups:
+  -
+sources_locked:
+  - repo: git@github.com:mttjohnson/infra-components.git
+    name: mttjohnson_infra
+    rev: 62dcff2bb50f2c2dc36ca6303fd6c251b14464bd
+    type: git
+    params:
+    sparse_paths:
+      -
+    links:
+      -
+    scripts:
+      -

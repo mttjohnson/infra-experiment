@@ -1,0 +1,65 @@
+---
+- name: Check Ansible version being executed matches expected version
+  ansible.builtin.import_playbook: mttjohnson.infra.check_ansible_version
+
+# Mounting the attached volume is not necessary on a system container
+# - name: Format / Mount - attached volume
+#   ansible.builtin.import_playbook: volume_mount.yml
+#   vars:
+#     device_path: "{{ additional_disk_device_path }}"
+#     mount_path: /data
+#     filesystem_type: ext4
+#     mount_opts: defaults,nofail,noatime,nodiratime,_netdev
+
+- name: System Configuration Playbook
+  hosts: all
+  any_errors_fatal: true
+  gather_facts: true
+  become: true
+
+  roles: []
+
+  tasks:
+    # ----- Basic Host Setup -----
+    # Ansible remote_tmp setup
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.ansible_remote_tmp }, tags: ansible_remote_tmp }
+
+    # Initialize Access
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.syseng_access }, tags: syseng_access }
+
+    # OS distribution upgrades
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.os_update }, tags: os_update }
+
+    # Check for snap packages to update
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.snap_update }, tags: snap_update }
+
+    # Set the hostname
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.hostname }, tags: hostname }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.avahi_hostname }, tags: avahi_hostname }
+
+    # ----- Useful Tools -----
+    - name: "snap :: install common packages"
+      community.general.snap:
+        name:
+          - yq
+        channel: latest/stable
+        state: present
+      tags: snap
+
+    - name: "apt :: install common packages"
+      ansible.builtin.package:
+        name:
+          - net-tools # includes ifconfig/netstat
+          - iputils-ping # includes ping
+          - vim
+          - jq
+          - curl
+        state: present
+
+    # ----- Certificate -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.acme_dns_reg }, tags: acme_dns_reg }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.acme_dns_client }, tags: acme_dns_client }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.certbot }, tags: certbot }
+
+    # ----- System -----
+    # - { ansible.builtin.import_role: { name: mttjohnson.infra.xxxxxxxxxx }, tags: xxxxxxxxxx }
