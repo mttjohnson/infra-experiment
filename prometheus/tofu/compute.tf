@@ -11,7 +11,9 @@ data "local_file" "cloud_init_ssh_key_pub" {
 }
 
 resource "incus_instance" "system" {
-  name = var.instance_name
+  for_each = { for r in var.instances_metadata : r.hostname => r }
+
+  name = each.value.hostname
 
   # https://linuxcontainers.org/incus/docs/main/howto/images_remote/
   image     = var.incus_image_name
@@ -23,8 +25,8 @@ resource "incus_instance" "system" {
   config = {
 
     # https://linuxcontainers.org/incus/docs/main/reference/instance_options/#resource-limits
-    "limits.cpu" = 2
-    "limits.memory" = "2GiB"
+    "limits.cpu" = each.value.vcpu
+    "limits.memory" = each.value.ram
 
     "boot.autostart" = true
     # "cloud-init.user-data" = data.template_file.user_data.rendered
@@ -61,12 +63,12 @@ resource "incus_instance" "system" {
               eth0:
                   dhcp4: false
                   dhcp6: false
-                  addresses: [ ${var.static_ipv4_address}/24 ]
+                  addresses: [ ${each.value.ip_address}/24 ]
                   routes:
                     - to: default
                       via: ${var.static_net_gateway}
                   nameservers:
-                    search: [ mash.lan, hc.deney.io, local ]
+                    search: [ hc.deney.io, local ]
                     addresses: [ ${var.static_net_dns} ]
     EOT
   }
@@ -77,7 +79,7 @@ resource "incus_instance" "system" {
     properties = {
       path = "/"
       pool = "local"
-      size = "50GiB"
+      size = each.value.sys_disk_sz
     }
   }
 
@@ -87,7 +89,7 @@ resource "incus_instance" "system" {
     properties = {
       path   = "/data"
       pool   = "local"
-      source = incus_storage_volume.data.name
+      source = incus_storage_volume.data[each.value.hostname].name
     }
   }
 
@@ -110,7 +112,7 @@ resource "incus_instance" "system" {
     connection {
       type = "ssh"
       user = data.external.get_local_username.result["username"]
-      host = incus_instance.system.ipv4_address
+      host = each.value.ip_address
     }
   }
 
@@ -127,12 +129,14 @@ resource "incus_instance" "system" {
 }
 
 resource "incus_storage_volume" "data" {
-  name         = "${var.instance_name}-data"
+  for_each = { for r in var.instances_metadata : r.hostname => r }
+
+  name         = "${each.value.hostname}-data"
   pool         = "local"
   type         = "custom"
   content_type = "filesystem"
   config = {
-    size = "10GiB"
+    size = "${each.value.data_disk_sz}"
   }
 
   lifecycle {
@@ -156,14 +160,34 @@ resource "local_file" "system_ansible_inventory" {
         children : {
           "system" : {
             hosts : {
-              "${incus_instance.system.name}" : {
-                fq_hostname                 = "${var.instance_name}.${var.power_dns_zone}"
-                ansible_host                = "${incus_instance.system.ipv4_address}"
-                static_ipv4_to_use          = "${var.static_ipv4_address}"
-                net_default_gateway         = "${var.static_net_gateway}"
-                net_dns                     = "${var.static_net_dns}"
+              for hostname, instance in incus_instance.system :
+              instance.name => {
+                fq_hostname                 = "${hostname}.${var.power_dns_zone}"
+                ansible_host                = lookup(
+                  { for r in var.instances_metadata : r.hostname => r.ip_address },
+                  hostname,
+                  null
+                )
+                static_ipv4_to_use          = lookup(
+                  { for r in var.instances_metadata : r.hostname => r.ip_address },
+                  hostname,
+                  null
+                )
+                net_default_gateway         = var.static_net_gateway
+                net_dns                     = var.static_net_dns
                 additional_disk_device_path = "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_data"
-                acme_dns_reg_cert_domains = "${[for obj in var.acme_dns_domains_to_register : obj.fq_domain]}"
+                acme_dns_reg_cert_domains   = [
+                  for obj in var.acme_dns_domains_to_register : 
+                  obj.fq_domain if obj.hostname == hostname
+                ]
+                certbot_domains   = [
+                  for obj in var.certbot_domains : 
+                  obj.fq_domain if obj.hostname == hostname
+                ]
+                acme_dns_replicate_registration   = [
+                  for obj in var.acme_dns_replicate_registration : 
+                  { source_host = obj.source_host, domain = obj.fq_domain } if obj.hostname == hostname
+                ]
               }
             }
           }
@@ -187,7 +211,9 @@ resource "null_resource" "system_provisioning_pre_initialization" {
   ]
 
   triggers = {
-    instance_ids = incus_instance.system.name
+    instance_ids = join(",", sort([
+      for instance in incus_instance.system : instance.name
+    ]))
   }
 
   # Run ansible acme_dns_register playbook
@@ -206,7 +232,9 @@ resource "null_resource" "system_provisioning_server_config" {
   ]
 
   triggers = {
-    instance_ids = incus_instance.system.name
+    instance_ids = join(",", sort([
+      for instance in incus_instance.system : instance.name
+    ]))
   }
 
   # Run ansible provisioning playbook
