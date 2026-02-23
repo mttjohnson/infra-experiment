@@ -61,4 +61,4 @@
     - { ansible.builtin.import_role: { name: mttjohnson.infra.certbot }, tags: certbot }
 
     # ----- System -----
-    # - { ansible.builtin.import_role: { name: mttjohnson.infra.xxxxxxxxxx }, tags: xxxxxxxxxx }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.prometheus }, tags: prometheus }
