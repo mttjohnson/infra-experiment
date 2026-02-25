@@ -16,3 +16,6 @@ prometheus_tls_key_symlink_src: "/etc/letsencrypt/live/{{ fq_hostname }}/privkey
 prometheus_system_user_extra_groups:
   - cert-access
 prometheus_db_dir: /data/prometheus
+
+prometheus_basic_auth_enabled: true
+prometheus_basic_auth_username: prometheus

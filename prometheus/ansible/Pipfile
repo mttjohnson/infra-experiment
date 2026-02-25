@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 jmespath = "*"
 ansible-core = "==2.20.1"
+bcrypt = "*"
 
 [dev-packages]
 
