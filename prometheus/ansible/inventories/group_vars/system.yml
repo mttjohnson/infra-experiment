@@ -10,12 +10,13 @@ acme_dns_api_url: https://assist-req.deney.io
 certbot_email: matt@evdat.com
 
 prometheus_tls_enabled: true
+prometheus_tls_insecure_skip_verify: false
 prometheus_tls_mode: symlink
 prometheus_tls_cert_symlink_src: "/etc/letsencrypt/live/{{ fq_hostname }}/fullchain.pem"
 prometheus_tls_key_symlink_src: "/etc/letsencrypt/live/{{ fq_hostname }}/privkey.pem"
 prometheus_system_user_extra_groups:
   - cert-access
 prometheus_db_dir: /data/prometheus
-
+prometheus_scrape_hostname: "{{ fq_hostname }}"
 prometheus_basic_auth_enabled: true
 prometheus_basic_auth_username: prometheus
