@@ -20,3 +20,14 @@ prometheus_db_dir: /data/prometheus
 prometheus_scrape_hostname: "{{ fq_hostname }}"
 prometheus_basic_auth_enabled: true
 prometheus_basic_auth_username: prometheus
+
+node_exporter_tls_enabled: true
+node_exporter_tls_mode: symlink
+node_exporter_tls_cert_symlink_src: "/etc/letsencrypt/live/{{ fq_hostname }}/fullchain.pem"
+node_exporter_tls_key_symlink_src: "/etc/letsencrypt/live/{{ fq_hostname }}/privkey.pem"
+node_exporter_system_user_extra_groups:
+  - cert-access
+
+node_exporter_basic_auth_enabled: true
+node_exporter_basic_auth_username: node_exporter
+node_exporter_basic_auth_password_hash: "$2y$05$hhEqz6105llPC6byoveheuuhzp0.QcjjR2TitI/CUGRM4pVkJFmXm" # yourpassword
