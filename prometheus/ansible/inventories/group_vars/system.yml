@@ -1,4 +1,8 @@
 ---
+syseng_access_users:
+  - username: selvaran
+    pubkey_content: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMToPIBF73uxnh1L8LDl1exh54AT5CTvFnoap8E2ULUh selvaran@selvaran
+
 acme_dns_reg_run_registration: true
 certbot_generate_and_issue_cert: true
 

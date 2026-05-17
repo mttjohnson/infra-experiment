@@ -25,10 +25,10 @@ BRed='\033[1;31m'         # Red
 
 # Check to make sure this script is being sourced, if not abort with error
 sourced=0
-if [ -n "${ZSH_EVAL_CONTEXT-}" ]; then 
+if [ -n "${ZSH_EVAL_CONTEXT-}" ]; then
   case $ZSH_EVAL_CONTEXT in *:file) sourced=1;; esac
 elif [ -n "$BASH_VERSION" ]; then
-  (return 0 2>/dev/null) && sourced=1 
+  (return 0 2>/dev/null) && sourced=1
 fi
 
 if [ "${sourced}" = "0" ]; then
@@ -69,12 +69,6 @@ fi
 # Load pipenv shell
 pipenv sync
 source "$(pipenv --venv)/bin/activate"
-
-# Install Ansible Galaxy dependencies
-echo "Installing Ansible Galaxy dependencies"
-FORCE_UPDATE_ANSIBLE_DEPENDENCIES="${FORCE_UPDATE_ANSIBLE_DEPENDENCIES:---force}"
-ansible-galaxy role install -r ansible_requirements.yml "${FORCE_UPDATE_ANSIBLE_DEPENDENCIES}"
-ansible-galaxy collection install -r ansible_requirements.yml
 
 # Run ansible requirements script for misc requirements
 ./ansible_requirements.sh

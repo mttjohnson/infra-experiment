@@ -57,5 +57,11 @@ link_ansible_role "../../../${gitman_dependencies_path}/mttjohnson_infra/ansible
 
 
 
+# Install Ansible Galaxy dependencies
+echo "Installing Ansible Galaxy dependencies"
+FORCE_UPDATE_ANSIBLE_DEPENDENCIES="${FORCE_UPDATE_ANSIBLE_DEPENDENCIES:---force}"
+ansible-galaxy role install -r ansible_requirements.yml "${FORCE_UPDATE_ANSIBLE_DEPENDENCIES}"
+ansible-galaxy collection install -r ansible_requirements.yml
+
 # Change back to the directory originally called from
 popd
