@@ -12,6 +12,8 @@ additional_hostsfile_hosts:
 
 acme_dns_api_url: https://assist-req.deney.io
 certbot_email: matt@evdat.com
+certbot_relocate_data_dir: true
+certbot_custom_data_dir: /data/letsencrypt
 
 prometheus_tls_enabled: true
 prometheus_tls_insecure_skip_verify: false
