@@ -40,3 +40,5 @@ node_exporter_basic_auth_password_hash: "$2y$05$hhEqz6105llPC6byoveheuuhzp0.Qcjj
 
 restic_backup_paths:
   - /etc
+restic_fetch_password_to_control: true
+restic_control_password_dir: "{{ inventory_dir }}/../restic-passwords"

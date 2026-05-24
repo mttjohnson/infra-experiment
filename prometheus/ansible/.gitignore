@@ -11,3 +11,6 @@
 
 # Ignore temp packer inventory files
 /inventories/packer-provisioner-ansible*
+
+# Ignore restic password files
+/restic-passwords/*
