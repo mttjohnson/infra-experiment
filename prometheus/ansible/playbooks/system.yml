@@ -21,20 +21,12 @@
 
   tasks:
     # ----- Basic Host Setup -----
-    # Ansible remote_tmp setup
     - { ansible.builtin.import_role: { name: mttjohnson.infra.ansible_remote_tmp }, tags: ansible_remote_tmp }
-
-    # Initialize Access
     - { ansible.builtin.import_role: { name: mttjohnson.infra.syseng_access }, tags: syseng_access }
-
-    # OS distribution upgrades
     - { ansible.builtin.import_role: { name: mttjohnson.infra.os_update }, tags: os_update }
-
-    # Check for snap packages to update
     - { ansible.builtin.import_role: { name: mttjohnson.infra.snap_update }, tags: snap_update }
-
-    # Set the hostname
     - { ansible.builtin.import_role: { name: mttjohnson.infra.hostname }, tags: hostname }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.ghostty_terminfo }, tags: ghostty_terminfo }
 
     # ----- Useful Tools -----
     - name: "snap :: install common packages"
