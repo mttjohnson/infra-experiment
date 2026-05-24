@@ -62,4 +62,5 @@
 
     # ----- System -----
     - { ansible.builtin.import_role: { name: mttjohnson.infra.prometheus }, tags: prometheus }
-    - { ansible.builtin.import_role: { name: mttjohnson.infra.node_exporter }, tags: node_exporter }
+    # - { ansible.builtin.import_role: { name: mttjohnson.infra.node_exporter }, tags: node_exporter }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.restic }, tags: restic }
