@@ -27,6 +27,8 @@
     - { ansible.builtin.import_role: { name: mttjohnson.infra.snap_update }, tags: snap_update }
     - { ansible.builtin.import_role: { name: mttjohnson.infra.hostname }, tags: hostname }
     - { ansible.builtin.import_role: { name: mttjohnson.infra.ghostty_terminfo }, tags: ghostty_terminfo }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.restic }, tags: restic }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.restic_restore }, tags: restic_restore }
 
     # ----- Useful Tools -----
     - name: "snap :: install common packages"
@@ -55,4 +57,3 @@
     # ----- System -----
     - { ansible.builtin.import_role: { name: mttjohnson.infra.prometheus }, tags: prometheus }
     # - { ansible.builtin.import_role: { name: mttjohnson.infra.node_exporter }, tags: node_exporter }
-    - { ansible.builtin.import_role: { name: mttjohnson.infra.restic }, tags: restic }

@@ -44,3 +44,12 @@ restic_backup_paths:
   # - /data/prometheus
 restic_fetch_password_to_control: true
 restic_control_password_dir: "{{ inventory_dir }}/../restic-passwords"
+
+restic_restore_bundles:
+  - name: letsencrypt               # required, used in task names & marker filename
+    paths:                          # required, ≥1 absolute path
+      - /data/letsencrypt
+    snapshot_selector:              # filter for picking the snapshot
+      paths: [/data/letsencrypt]    # optional, defaults to bundle `paths`
+      latest: true                  # optional, default true (only true is honored)
+    restore_required: false         # optional, default false; true = fail if no match
