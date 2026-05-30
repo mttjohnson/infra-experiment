@@ -1,0 +1,6 @@
+---
+- name: Check Ansible version being executed matches expected version
+  ansible.builtin.import_playbook: mttjohnson.infra.check_ansible_version
+
+- name: ACME DNS Registration
+  ansible.builtin.import_playbook: mttjohnson.infra.acme_dns_register

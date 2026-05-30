@@ -2,6 +2,40 @@
 
 ## Ansible
 
+### Running playbooks (CHECK MODE ONLY)
+
+**The agent must only ever run playbooks in check mode (`--check`). Do not apply
+changes.** The operator is not ready to delegate real applies — every playbook run you
+make is for *validating* role changes, never for changing the remote system. A plain run
+(without `--check`) is off-limits unless the operator explicitly asks for it in that
+message. When in doubt, run `--check` and report what *would* change; let the operator
+decide whether to apply.
+
+Playbooks run inside a pipenv-managed virtualenv that pins the correct Ansible version.
+A human gets this automatically: the implementation's `ansible/.envrc` triggers direnv on
+`cd`, which runs `pipenv sync` and activates the venv. **direnv does not fire in the
+agent's non-interactive shell**, so you must activate the environment yourself, in the
+*same* shell invocation as the playbook (shell state does not persist between Bash calls).
+
+Source `ansible_pre_exec.sh` — it does `pipenv sync`, activates the venv, and installs
+Galaxy requirements (equivalent to what `.envrc` does, plus log rotation and requirements):
+
+```bash
+cd <implementation>/ansible            # e.g. agent-sandbox/ansible
+source ansible_pre_exec.sh && \
+  ansible-playbook playbooks/system.yml --diff --check
+```
+
+Useful flags:
+- `--check` — **required**; dry run, applies nothing.
+- `--diff` — show what would change; pair with `--check` to read the would-be edits.
+- `--tags <role>` — scope the run to the role you are iterating on (e.g.
+  `--tags bot_dev`) for a fast feedback loop.
+
+A clean idempotent result is `changed=0` in the PLAY RECAP. If a task reports `changed`
+on a converged system, that is a bug to fix (often a non-idempotent task), not noise to
+ignore.
+
 ### Check mode compatibility
 Playbooks must always be runnable with `--check` before applying to a remote system.
 Check mode is the operator's safety gate: it must surface what would change and catch

@@ -1,0 +1,11 @@
+---
+# Define the intended path for Ansible to use on the target host to avoid 
+# automatic detection of the interpreter and warnings.
+ansible_python_interpreter: /usr/bin/python3
+ansible_managed: Please DO NOT modify! - Managed by Ansible (use ansible playbooks to make modifications here)
+
+# Define the supported ansible version requirements of these playbooks
+ansible_version_require_min: "2.20.1"         # Example "2.12" or "2"
+ansible_version_require_min_operator: ">="  # Example ">=" or ">"
+ansible_version_require_max: "2.21"            # Example "2.13" or "3"
+ansible_version_require_max_operator: "<"   # Example "<=" or "<"

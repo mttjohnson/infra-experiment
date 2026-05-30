@@ -1,0 +1,75 @@
+---
+syseng_access_users:
+  - username: selvaran
+    pubkey_content: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMToPIBF73uxnh1L8LDl1exh54AT5CTvFnoap8E2ULUh selvaran@selvaran
+  - username: mattjohnson
+    pubkey_content: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM2Gf3rpa3TyHvZgA/v0+84xealEhUgo4GV4XxcE4hf0 m@ttjohnson.com:matt-mbp2019:20231204:ed25519
+
+acme_dns_reg_run_registration: false
+certbot_generate_and_issue_cert: false
+
+hostsfile_hosts: []
+additional_hostsfile_hosts:
+  - { ip: "127.0.0.1", hostname: "{{ fq_hostname }} {{ inventory_hostname }}" }
+
+acme_dns_api_url: https://assist-req.deney.io
+certbot_email: matt@evdat.com
+certbot_relocate_data_dir: true
+certbot_custom_data_dir: /data/letsencrypt
+
+restic_backup_paths:
+  - /etc
+  - /data/letsencrypt
+  # - /data/prometheus
+restic_fetch_password_to_control: true
+restic_control_password_dir: "{{ inventory_dir }}/../restic-passwords"
+
+restic_restore_bundles:
+  - name: letsencrypt               # required, used in task names & marker filename
+    paths:                          # required, ≥1 absolute path
+      - /data/letsencrypt
+    snapshot_selector:              # filter for picking the snapshot
+      paths: [/data/letsencrypt]    # optional, defaults to bundle `paths`
+      latest: true                  # optional, default true (only true is honored)
+    restore_required: false         # optional, default false; true = fail if no match
+
+
+
+
+bot_dev_user: sandy
+bot_dev_group: sandy
+bot_dev_authorized_pubkey: ~/.ssh/id_ed25519.pub
+
+claude_code_user: "{{ bot_dev_user }}"
+
+codex_user: "{{ bot_dev_user }}"
+codex_version: latest
+
+antigravity_user: "{{ bot_dev_user }}"
+antigravity_group: "{{ bot_dev_group }}"
+
+pyenv_user: "{{ bot_dev_user }}"
+pyenv_group: "{{ bot_dev_group }}"
+pyenv_python_versions: ["3.14.4"]
+pyenv_global_version: "3.14.4"
+
+cosign_version: "3.0.6"
+cosign_verify: "bundle"
+
+tenv_version: "latest"
+tenv_setup_shell_init: true
+tenv_user: "{{ bot_dev_user }}"
+tenv_group: "{{ bot_dev_group }}"
+
+pipx_user: "{{ bot_dev_user }}"
+pipx_group: "{{ bot_dev_group }}"
+pipenv_user: "{{ bot_dev_user }}"
+pipenv_group: "{{ bot_dev_group }}"
+gitman_user: "{{ bot_dev_user }}"
+gitman_group: "{{ bot_dev_group }}"
+direnv_user: "{{ bot_dev_user }}"
+direnv_group: "{{ bot_dev_group }}"
+
+# 2026-05-02 resolute suite not available, so using noble instead for now
+packer_apt_suite: "noble"
+packer_version: "latest"

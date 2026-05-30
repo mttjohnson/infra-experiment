@@ -1,0 +1,76 @@
+---
+- name: Check Ansible version being executed matches expected version
+  ansible.builtin.import_playbook: mttjohnson.infra.check_ansible_version
+
+# Mounting the attached volume is not necessary on a system container
+# - name: Format / Mount - attached volume
+#   ansible.builtin.import_playbook: volume_mount.yml
+#   vars:
+#     device_path: "{{ additional_disk_device_path }}"
+#     mount_path: /data
+#     filesystem_type: ext4
+#     mount_opts: defaults,nofail,noatime,nodiratime,_netdev
+
+- name: System Configuration Playbook
+  hosts: all
+  any_errors_fatal: true
+  gather_facts: true
+  become: true
+
+  roles: []
+
+  tasks:
+    # ----- Basic Host Setup -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.ansible_remote_tmp }, tags: ansible_remote_tmp }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.syseng_access }, tags: syseng_access }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.os_update }, tags: os_update }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.snap_update }, tags: snap_update }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.hostname }, tags: hostname }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.ghostty_terminfo }, tags: ghostty_terminfo }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.restic }, tags: restic }
+    # - { ansible.builtin.import_role: { name: mttjohnson.infra.restic_restore }, tags: restic_restore }
+
+    # ----- Useful Tools -----
+    - name: "snap :: install common packages"
+      community.general.snap:
+        name:
+          - yq
+        channel: latest/stable
+        state: present
+      tags: snap
+
+    - name: "apt :: install common packages"
+      ansible.builtin.package:
+        name:
+          - net-tools # includes ifconfig/netstat
+          - iputils-ping # includes ping
+          - vim
+          - jq
+          - curl
+          - nfs-common
+        state: present
+
+    # ----- Certificate -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.acme_dns_reg }, tags: acme_dns_reg }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.acme_dns_client }, tags: acme_dns_client }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.certbot }, tags: certbot }
+
+    # ----- System -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.cosign }, tags: cosign }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.bot_dev }, tags: bot_dev }
+    # - { ansible.builtin.import_role: { name: mttjohnson.infra.incus_trust }, tags: incus_trust }
+
+    # ----- Development Tools -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.pyenv }, tags: pyenv }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.tenv }, tags: tenv }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.pipx }, tags: pipx }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.pipenv }, tags: pipenv }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.gitman }, tags: gitman }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.direnv }, tags: direnv }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.packer }, tags: packer }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.nodejs }, tags: nodejs }
+
+    # ----- Agent Tools -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.claude_code }, tags: claude_code }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.codex }, tags: codex }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.antigravity }, tags: antigravity }
