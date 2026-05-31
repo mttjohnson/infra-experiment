@@ -36,6 +36,33 @@ A clean idempotent result is `changed=0` in the PLAY RECAP. If a task reports `c
 on a converged system, that is a bug to fix (often a non-idempotent task), not noise to
 ignore.
 
+### Inspect effective inventory variables before running
+
+Before running (or reasoning about) a play, review the variables that will actually be in
+effect for the target host. Do **not** hand-reconcile the inventory file, `group_vars/`,
+and `host_vars/` by reading each and guessing precedence — let Ansible compute the merge.
+The `<tool>_user` defaults a role declares are frequently overridden in `group_vars`, so a
+role default read in isolation is misleading (e.g. the agent-CLI roles default to a
+placeholder user, but `group_vars/system.yml` sets `<tool>_user: "{{ bot_dev_user }}"`).
+
+Source the venv first (`ansible_pre_exec.sh`), then from the implementation's `ansible/`
+directory:
+
+```bash
+ansible-inventory --host <host>       # JSON of all merged vars for one host (precedence applied)
+ansible-inventory --graph --vars      # group/host tree, showing which group each var rides on
+ansible-inventory --list              # everything, all hosts and groups
+```
+
+**Caveats — what this does *not* show:**
+- It resolves **inventory sources only** (inventory file + `group_vars/` + `host_vars/`).
+  It does **not** include role `defaults`/`vars`, play `vars`, `set_fact`, or `-e`
+  extra-vars. A variable that exists *only* as a role default will be **absent** here — so
+  absence in this output means "role default wins," not "unset."
+- Jinja values are shown **unrendered** (e.g. `{{ bot_dev_user }}`, not `sandy`). To see
+  fully rendered runtime values including role defaults, add a transient
+  `ansible.builtin.debug: var=hostvars[inventory_hostname]` task, or run with `--check -v`.
+
 ### Check mode compatibility
 Playbooks must always be runnable with `--check` before applying to a remote system.
 Check mode is the operator's safety gate: it must surface what would change and catch

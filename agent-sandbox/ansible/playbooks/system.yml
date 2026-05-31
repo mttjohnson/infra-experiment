@@ -74,3 +74,4 @@
     - { ansible.builtin.import_role: { name: mttjohnson.infra.claude_code }, tags: claude_code }
     - { ansible.builtin.import_role: { name: mttjohnson.infra.codex }, tags: codex }
     - { ansible.builtin.import_role: { name: mttjohnson.infra.antigravity }, tags: antigravity }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.opencode }, tags: opencode }

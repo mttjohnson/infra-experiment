@@ -48,6 +48,9 @@ codex_version: latest
 antigravity_user: "{{ bot_dev_user }}"
 antigravity_group: "{{ bot_dev_group }}"
 
+opencode_user: "{{ bot_dev_user }}"
+opencode_version: latest
+
 pyenv_user: "{{ bot_dev_user }}"
 pyenv_group: "{{ bot_dev_group }}"
 pyenv_python_versions: ["3.14.4"]

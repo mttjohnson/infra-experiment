@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# gitman shim — portable, machine-independent.
+#
+# Forces `--depth=1` on the subcommands that accept it (install/update/list) so
+# gitman does not recurse into nested child gitman.yml files by default. It is
+# placed on PATH by the sibling .envrc (via direnv) ahead of the real gitman.
+#
+# This file is a STATIC artifact: it contains NO machine-specific data (no
+# hard-coded paths), so its bytes — and therefore its sha256 — are identical on
+# every system it is synced to. .envrc pins that digest and refuses to load the
+# shim if it does not match. Do not hand-edit without updating the expected
+# digest in .envrc (which also forces a fresh `direnv allow`).
+
+set -uo pipefail
+
+# --- Locate the real gitman without recursing into this shim ----------------
+# This shim is named `gitman` and sits on PATH, so resolving "gitman" naively
+# would find us again. Instead, drop our own directory from PATH, then resolve
+# the next gitman on PATH. No hard-coded path, so nothing is machine-specific.
+self_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" 2>/dev/null && pwd -P)"
+if [[ -z "${self_dir}" ]]; then
+    printf 'gitman-shim: unable to determine own directory; refusing to run\n' >&2
+    exit 70
+fi
+
+_filtered_path=""
+IFS=':' read -ra _path_parts <<< "${PATH}"
+for _p in "${_path_parts[@]}"; do
+    [[ -z "${_p}" ]] && continue
+    if [[ -d "${_p}" ]]; then
+        _p_norm="$(cd -- "${_p}" 2>/dev/null && pwd -P)"
+    else
+        _p_norm="${_p}"
+    fi
+    [[ "${_p_norm}" == "${self_dir}" ]] && continue
+    _filtered_path="${_filtered_path:+${_filtered_path}:}${_p}"
+done
+
+real_gitman="$(PATH="${_filtered_path}" command -v gitman || true)"
+if [[ -z "${real_gitman}" ]]; then
+    printf 'gitman-shim: could not find the real gitman on PATH (excluded %s)\n' "${self_dir}" >&2
+    exit 127
+fi
+
+# --- Inject --depth=1 for subcommands that accept it ------------------------
+# Find the first non-flag argument; that's the subcommand.
+subcommand=""
+for arg in "$@"; do
+    case "$arg" in
+        -*) ;;
+        *) subcommand="$arg"; break ;;
+    esac
+done
+
+case "$subcommand" in
+    install|update|list)
+        # Don't double up if the user already passed --depth or -d.
+        for arg in "$@"; do
+            case "$arg" in
+                --depth|--depth=*|-d) exec "$real_gitman" "$@" ;;
+            esac
+        done
+        # Insert --depth=1 right after the subcommand so it parses correctly.
+        new_args=()
+        inserted=0
+        for arg in "$@"; do
+            new_args+=("$arg")
+            if [[ $inserted -eq 0 && "$arg" == "$subcommand" ]]; then
+                new_args+=("--depth=1")
+                inserted=1
+            fi
+        done
+        exec "$real_gitman" "${new_args[@]}"
+        ;;
+    *)
+        exec "$real_gitman" "$@"
+        ;;
+esac
