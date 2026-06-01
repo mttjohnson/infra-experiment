@@ -1,0 +1,13 @@
+# Gitman managed git repo dependencies
+/dependencies
+# Direnv helper scripts for gitman
+/.direnv
+
+# Mutagen project lock file
+/mutagen.yml.lock
+
+# Local files synced with remote user home projects using mutagen
+/remote_projects
+
+# macOS hidden files
+.DS_Store

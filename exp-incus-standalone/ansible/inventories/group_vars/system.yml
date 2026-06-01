@@ -1,0 +1,65 @@
+---
+# Attached data-disk handling (only virtual-machines with block device)
+attached_data_disk_partition: true
+attached_data_disk_partition_number: 1
+attached_data_disk_partition_label: gpt
+attached_data_disk_partition_name: data
+# attached_data_disk_mount: false
+# attached_data_disk_mount_path: /data
+# attached_data_disk_mount_filesystem_type: ext4
+# attached_data_disk_mount_opts: defaults,nofail,noatime,nodiratime,_netdev
+
+syseng_access_users:
+  - username: selvaran
+    pubkey_content: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMToPIBF73uxnh1L8LDl1exh54AT5CTvFnoap8E2ULUh selvaran@selvaran
+  - username: mattjohnson
+    pubkey_content: ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM2Gf3rpa3TyHvZgA/v0+84xealEhUgo4GV4XxcE4hf0 m@ttjohnson.com:matt-mbp2019:20231204:ed25519
+
+acme_dns_reg_run_registration: false
+certbot_generate_and_issue_cert: false
+
+hostsfile_hosts: []
+additional_hostsfile_hosts:
+  - { ip: "127.0.0.1", hostname: "{{ fq_hostname }} {{ inventory_hostname }}" }
+
+acme_dns_api_url: https://assist-req.deney.io
+certbot_email: matt@evdat.com
+certbot_relocate_data_dir: true
+certbot_custom_data_dir: /data/letsencrypt
+
+restic_backup_paths:
+  - /etc
+  - /data/letsencrypt
+  # - /data/prometheus
+restic_fetch_password_to_control: true
+restic_control_password_dir: "{{ inventory_dir }}/../restic-passwords"
+
+restic_restore_bundles:
+  - name: letsencrypt               # required, used in task names & marker filename
+    paths:                          # required, ≥1 absolute path
+      - /data/letsencrypt
+    snapshot_selector:              # filter for picking the snapshot
+      paths: [/data/letsencrypt]    # optional, defaults to bundle `paths`
+      latest: true                  # optional, default true (only true is honored)
+    restore_required: false         # optional, default false; true = fail if no match
+
+
+
+# ----- System ----
+incus_use_certbot_deploy_hook_incus_reload: false
+incus_use_certbot_deploy_hook_update_cluster_cert: false
+
+incus_storage:
+  local:
+    driver: zfs
+    local_config:
+      source: "/dev/sdb1"
+    default: true
+incus_network:
+  internalbr0:
+    type: bridge
+    config:
+      ipv4.address: 172.31.254.1/24
+      ipv4.nat: "true"
+      ipv6.address: none
+    default: true

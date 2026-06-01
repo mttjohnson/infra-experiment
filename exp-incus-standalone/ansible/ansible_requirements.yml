@@ -1,0 +1,17 @@
+---
+# Install Collections and Roles with Ansible Galaxy
+# ansible-galaxy install -r ansible_requirements.yml
+
+collections:
+  - name: community.general
+  - name: ansible.posix
+  - name: community.crypto
+  # - name: community.mysql
+  # - name: community.postgresql
+  # - name: local.deneyio
+
+roles:
+  # - src: git@github.com:xxxxx/xxxxx.git
+  #   scm: git
+  #   version: xxxxx
+  #   name: xxxxx

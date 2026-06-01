@@ -1,0 +1,81 @@
+---
+- name: Check Ansible version being executed matches expected version
+  ansible.builtin.import_playbook: mttjohnson.infra.check_ansible_version
+
+# Attached data-disk handling (only virtual-machines with block device)
+- name: Partition - attached volume
+  ansible.builtin.import_playbook: mttjohnson.infra.partition_disk
+  when:
+    - attached_data_disk_type == "block"
+    - attached_data_disk_partition | default(false) | bool
+  vars:
+    device_path: "{{ additional_disk_device_path }}"
+    partition_number: "{{ attached_data_disk_partition_number | default(1) }}"
+    partition_label: "{{ attached_data_disk_partition_label | default('gpt') }}"
+    partition_name: "{{ attached_data_disk_partition_name | default('data') }}"
+
+- name: Format / Mount - attached volume
+  ansible.builtin.import_playbook: mttjohnson.infra.volume_mount
+  when:
+    - attached_data_disk_type == "block"
+    - attached_data_disk_mount | default(false) | bool
+  vars:
+    device_path: "{{ additional_disk_device_path }}"
+    mount_path: "{{ attached_data_disk_mount_path | default('/data') }}"
+    filesystem_type: "{{ attached_data_disk_mount_filesystem_type | default('ext4') }}"
+    mount_opts: "{{ attached_data_disk_mount_opts | default('defaults,nofail,noatime,nodiratime,_netdev') }}"
+
+- name: System Configuration Playbook
+  hosts: all
+  any_errors_fatal: true
+  gather_facts: true
+  become: true
+
+  roles: []
+
+  tasks:
+    # ----- Basic Host Setup -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.ansible_remote_tmp }, tags: ansible_remote_tmp }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.syseng_access }, tags: syseng_access }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.os_update }, tags: os_update }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.snap_update }, tags: snap_update }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.hostname }, tags: hostname }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.ghostty_terminfo }, tags: ghostty_terminfo }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.restic }, tags: restic }
+    # - { ansible.builtin.import_role: { name: mttjohnson.infra.restic_restore }, tags: restic_restore }
+
+    # ----- Useful Tools -----
+    - name: "snap :: install common packages"
+      community.general.snap:
+        name:
+          - yq
+        channel: latest/stable
+        state: present
+      tags: snap
+
+    - name: "apt :: install common packages"
+      ansible.builtin.package:
+        name:
+          - net-tools # includes ifconfig/netstat
+          - iputils-ping # includes ping
+          - vim
+          - jq
+          - curl
+          - nfs-common
+        state: present
+
+    # ----- Certificate -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.acme_dns_reg }, tags: acme_dns_reg }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.acme_dns_client }, tags: acme_dns_client }
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.certbot }, tags: certbot }
+
+    # ----- System -----
+    - name: "apt :: install storage packages"
+      ansible.builtin.package:
+        name:
+          - zfsutils-linux
+          - lvm2
+        state: present
+
+    # ----- Incus Setup -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.incus_setup }, tags: incus_setup }

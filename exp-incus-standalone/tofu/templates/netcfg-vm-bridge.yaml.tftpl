@@ -1,0 +1,21 @@
+network:
+    version: 2
+    ethernets:
+        enp5s0:
+            dhcp4: false
+            dhcp6: false
+    bridges:
+        externalbr0:
+            dhcp4: false
+            dhcp6: false
+            interfaces: [ enp5s0 ]
+            addresses: [ ${ip_address}/24 ]
+            routes:
+              - to: default
+                via: ${gateway}
+            nameservers:
+              search: [ ${join(", ", dns_search)} ]
+              addresses: [ ${dns} ]
+            parameters:
+              stp: false
+              forward-delay: 0
