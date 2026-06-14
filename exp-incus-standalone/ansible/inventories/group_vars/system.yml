@@ -63,3 +63,11 @@ incus_network:
       ipv4.nat: "true"
       ipv6.address: none
     default: true
+
+# ----- Backup Target -----
+incus_backup_target_nfs_host: "10.10.30.77"
+incus_backup_target_nfs_export: "/volume1/LabBackup"
+incus_backup_target_mount_path: "/srv/nas_lab_backup"
+# Synology LabBackup is an all_squash export, so the mounted share root presents as
+# 0777; match it here to keep the mount-point dir task idempotent.
+incus_backup_target_mount_dir_mode: "0777"

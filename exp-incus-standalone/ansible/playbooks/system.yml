@@ -31,8 +31,6 @@
   gather_facts: true
   become: true
 
-  roles: []
-
   tasks:
     # ----- Basic Host Setup -----
     - { ansible.builtin.import_role: { name: mttjohnson.infra.ansible_remote_tmp }, tags: ansible_remote_tmp }
@@ -79,3 +77,6 @@
 
     # ----- Incus Setup -----
     - { ansible.builtin.import_role: { name: mttjohnson.infra.incus_setup }, tags: incus_setup }
+
+    # ----- Incus Backup Target -----
+    - { ansible.builtin.import_role: { name: mttjohnson.infra.incus_backup_target }, tags: incus_backup_target }
