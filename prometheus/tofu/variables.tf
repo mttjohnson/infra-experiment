@@ -20,12 +20,12 @@ variable "cloud_init_ssh_key_pub_path" {
 
 variable "instances_metadata" {
   type = list(object({
-    hostname      = string
-    ip_address    = string
-    vcpu          = number
-    ram           = string
-    sys_disk_sz   = string
-    data_disk_sz  = string
+    hostname     = string
+    ip_address   = string
+    vcpu         = number
+    ram          = string
+    sys_disk_sz  = string
+    data_disk_sz = string
   }))
   default = [
     {
@@ -38,6 +38,22 @@ variable "instances_metadata" {
     },
   ]
 }
+# Custom storage volumes attached to instances, used for NFS-backed backup
+# storage. The volume is created in a pre-existing pool (managed on the Incus
+# host, e.g. the shared `nas_lab_backup` dir pool) and mounted at mount_path.
+# Incus creates the backing directory, so no host SSH or pre-created path is
+# required.
+variable "backup_volumes" {
+  type = list(object({
+    hostname    = string
+    device_name = string
+    pool        = string
+    volume_name = string
+    mount_path  = string
+  }))
+  default = []
+}
+
 variable "static_net_gateway" {
   type = string
 }
@@ -53,17 +69,17 @@ variable "power_dns_zone" {
 }
 variable "power_dns_records" {
   type = list(object({
-    hostname   = string
-    type = string
-    ttl = number
-    records = list(string)
+    hostname = string
+    type     = string
+    ttl      = number
+    records  = list(string)
   }))
   default = [
     {
-      hostname   = "hostname",
-      type = "A",
-      ttl = 300,
-      records = ["127.0.0.1"],
+      hostname = "hostname",
+      type     = "A",
+      ttl      = 300,
+      records  = ["127.0.0.1"],
     },
   ]
 }
@@ -92,28 +108,28 @@ variable "acme_dns_domains_to_register" {
 
 variable "acme_dns_replicate_registration" {
   type = list(object({
-    hostname           = string
+    hostname    = string
     source_host = string
-    fq_domain          = string
+    fq_domain   = string
   }))
   default = [
     {
-      hostname           = "hostname"
+      hostname    = "hostname"
       source_host = "hostname",
-      fq_domain          = "hostname.example.com",
+      fq_domain   = "hostname.example.com",
     },
   ]
 }
 
 variable "certbot_domains" {
   type = list(object({
-    hostname           = string
-    fq_domain          = string
+    hostname  = string
+    fq_domain = string
   }))
   default = [
     {
-      hostname           = "hostname"
-      fq_domain          = "hostname.example.com",
+      hostname  = "hostname"
+      fq_domain = "hostname.example.com",
     },
   ]
 }

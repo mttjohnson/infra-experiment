@@ -10,6 +10,27 @@ data "local_file" "cloud_init_ssh_key_pub" {
   filename = pathexpand(var.cloud_init_ssh_key_pub_path)
 }
 
+# Custom storage volumes for backups. Created in a pool that already exists on
+# the Incus host (e.g. the shared `nas_lab_backup` dir pool, whose per-host
+# source subtree keeps independent Incus hosts isolated on the shared NFS
+# export). Creating the volume makes Incus create the backing directory, so no
+# host SSH or pre-created path is required.
+resource "incus_storage_volume" "backups" {
+  for_each = { for v in var.backup_volumes : "${v.hostname}-${v.device_name}" => v }
+
+  name         = each.value.volume_name
+  pool         = each.value.pool
+  type         = "custom"
+  content_type = "filesystem"
+
+  # NFS-backed pool with all_squash->admin: Incus cannot shift (chown) the
+  # volume into the unprivileged container's UID range, so disable ID mapping
+  # and let the NFS squash provide uniform ownership instead.
+  config = {
+    "security.unmapped" = "true"
+  }
+}
+
 resource "incus_instance" "system" {
   for_each = { for r in var.instances_metadata : r.hostname => r }
 
@@ -25,7 +46,7 @@ resource "incus_instance" "system" {
   config = {
 
     # https://linuxcontainers.org/incus/docs/main/reference/instance_options/#resource-limits
-    "limits.cpu" = each.value.vcpu
+    "limits.cpu"    = each.value.vcpu
     "limits.memory" = each.value.ram
 
     "boot.autostart" = true
@@ -37,7 +58,7 @@ resource "incus_instance" "system" {
       # https://cloudinit.readthedocs.io/en/latest/reference/examples.html
       yamlencode({
         # Install any required packages on the server
-        "packages": [
+        "packages" : [
           "openssh-server" # Required for remote-exec provisioner and ansible
         ]
         "users" : [
@@ -93,6 +114,24 @@ resource "incus_instance" "system" {
     }
   }
 
+  # Backup storage volumes (e.g. NFS-backed). Attaches the custom volume created
+  # above from a pre-existing pool on the Incus host into the instance.
+  dynamic "device" {
+    for_each = {
+      for v in var.backup_volumes : v.device_name => v
+      if v.hostname == each.value.hostname
+    }
+    content {
+      type = "disk"
+      name = device.value.device_name
+      properties = {
+        pool   = device.value.pool
+        source = incus_storage_volume.backups["${device.value.hostname}-${device.value.device_name}"].name
+        path   = device.value.mount_path
+      }
+    }
+  }
+
   device {
     type = "nic" # https://linuxcontainers.org/incus/docs/main/reference/devices/
     name = "eth0"
@@ -142,7 +181,7 @@ resource "incus_storage_volume" "data" {
   lifecycle {
     # prevent_destroy = true
     ignore_changes = [
-      # If a custom storage volume is moved between incus hosts the 
+      # If a custom storage volume is moved between incus hosts the
       # zfs blocksize may not be recognized properly.
       config["zfs.blocksize"],
     ]
@@ -162,13 +201,13 @@ resource "local_file" "system_ansible_inventory" {
             hosts : {
               for hostname, instance in incus_instance.system :
               instance.name => {
-                fq_hostname                 = "${hostname}.${var.power_dns_zone}"
-                ansible_host                = lookup(
+                fq_hostname = "${hostname}.${var.power_dns_zone}"
+                ansible_host = lookup(
                   { for r in var.instances_metadata : r.hostname => r.ip_address },
                   hostname,
                   null
                 )
-                static_ipv4_to_use          = lookup(
+                static_ipv4_to_use = lookup(
                   { for r in var.instances_metadata : r.hostname => r.ip_address },
                   hostname,
                   null
@@ -176,16 +215,16 @@ resource "local_file" "system_ansible_inventory" {
                 net_default_gateway         = var.static_net_gateway
                 net_dns                     = var.static_net_dns
                 additional_disk_device_path = "/dev/disk/by-id/scsi-0QEMU_QEMU_HARDDISK_incus_data"
-                acme_dns_reg_cert_domains   = [
-                  for obj in var.acme_dns_domains_to_register : 
+                acme_dns_reg_cert_domains = [
+                  for obj in var.acme_dns_domains_to_register :
                   obj.fq_domain if obj.hostname == hostname
                 ]
-                certbot_domains   = [
-                  for obj in var.certbot_domains : 
+                certbot_domains = [
+                  for obj in var.certbot_domains :
                   obj.fq_domain if obj.hostname == hostname
                 ]
-                acme_dns_replicate_registration   = [
-                  for obj in var.acme_dns_replicate_registration : 
+                acme_dns_replicate_registration = [
+                  for obj in var.acme_dns_replicate_registration :
                   { source_host = obj.source_host, domain = obj.fq_domain } if obj.hostname == hostname
                 ]
               }
