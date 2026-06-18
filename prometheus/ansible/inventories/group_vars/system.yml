@@ -45,6 +45,11 @@ restic_backup_paths:
 restic_fetch_password_to_control: true
 restic_control_password_dir: "{{ inventory_dir }}/../restic-passwords"
 
+# Secondary off-box copy on the NFS-backed NAS volume mounted at /backups.
+# Replicated from the primary (/data/backups) via restic copy, with symmetric
+# retention and integrity checks. Shares the primary repository password.
+restic_secondary_repository: /backups
+
 restic_restore_bundles:
   - name: letsencrypt               # required, used in task names & marker filename
     paths:                          # required, ≥1 absolute path
