@@ -41,7 +41,19 @@ node_exporter_basic_auth_password_hash: "$2y$05$hhEqz6105llPC6byoveheuuhzp0.Qcjj
 restic_backup_paths:
   - /etc
   - /data/letsencrypt
-  # - /data/prometheus
+  # Cached basic-auth secrets the prometheus role reuses on re-runs to keep the
+  # password (and its bcrypt hash in web-config.yml) stable across rebuilds.
+  # Listed as explicit files, not a glob: the backup script quotes each path, so
+  # a trailing * would be passed to restic literally rather than shell-expanded.
+  - /root/prometheus_basic_auth_password.txt
+  - /root/prometheus_basic_auth_password_hash.txt
+  - /data/prometheus
+# Prometheus TSDB is crash-safe: a live file-level copy restores like a power-loss
+# recovery (the WAL is replayed on start), so no snapshot/dump step is needed.
+# Exclude only the runtime-only files that carry no value and are recreated on start.
+restic_backup_excludes:
+  - /data/prometheus/lock
+  - /data/prometheus/queries.active
 restic_fetch_password_to_control: true
 restic_control_password_dir: "{{ inventory_dir }}/../restic-passwords"
 
@@ -58,3 +70,26 @@ restic_restore_bundles:
       paths: [/data/letsencrypt]    # optional, defaults to bundle `paths`
       latest: true                  # optional, default true (only true is honored)
     restore_required: false         # optional, default false; true = fail if no match
+  - name: prometheus
+    paths:
+      - /data/prometheus
+    snapshot_selector:
+      paths: [/data/prometheus]
+      latest: true
+    restore_required: false
+  - name: prometheus_basic_auth
+    # Restore both files together from one snapshot so the plaintext and its
+    # cached bcrypt hash stay consistent. These must land before the prometheus
+    # role runs (restic_restore is ordered ahead of it in system.yml) so the
+    # role reuses the existing password instead of generating a fresh one.
+    paths:
+      - /root/prometheus_basic_auth_password.txt
+      - /root/prometheus_basic_auth_password_hash.txt
+    snapshot_selector:
+      # Must match the snapshot's top-level backup paths exactly (restic --path
+      # is an AND filter over the literal paths handed to `restic backup`).
+      paths:
+        - /root/prometheus_basic_auth_password.txt
+        - /root/prometheus_basic_auth_password_hash.txt
+      latest: true
+    restore_required: false
