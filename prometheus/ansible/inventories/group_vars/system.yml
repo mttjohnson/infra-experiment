@@ -62,8 +62,11 @@ restic_control_dir: "{{ inventory_dir }}/../restic-state"
 # retention and integrity checks. Shares the primary repository password.
 restic_secondary_repository: /backups
 
-restic_restore_env_file: /etc/restic/env
-# restic_restore_env_file: /etc/restic/env.secondary`
+# restic_restore restores each bundle from whichever source holds the newest
+# matching snapshot. The default sources are the primary env (/etc/restic/env)
+# plus the secondary env (/etc/restic/env.secondary) when present, so a rebuild
+# whose local /data/backups repo is gone restores automatically from the NAS
+# off-box copy — no manual env swap needed. See the restic role RECOVERY.md.
 restic_restore_bundles:
   - name: letsencrypt               # required, used in task names & marker filename
     paths:                          # required, ≥1 absolute path
