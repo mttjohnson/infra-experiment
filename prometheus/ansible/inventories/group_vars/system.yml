@@ -71,14 +71,19 @@ restic_restore_bundles:
     snapshot_selector:              # filter for picking the snapshot
       paths: [/data/letsencrypt]    # optional, defaults to bundle `paths`
       latest: true                  # optional, default true (only true is honored)
-    restore_required: false         # optional, default false; true = fail if no match
+    # recovery-critical: when recovery is expected (a prior backup exists) and
+    # this bundle has no matching snapshot, the play fails loudly and the host is
+    # NOT blessed (backups/retention stay locked) rather than silently starting
+    # fresh. On a genuine first deploy (no recovery expected) it is skipped. See
+    # the restic role RECOVERY.md.
+    restore_required: true
   - name: prometheus
     paths:
       - /data/prometheus
     snapshot_selector:
       paths: [/data/prometheus]
       latest: true
-    restore_required: false
+    restore_required: true
   - name: prometheus_basic_auth
     # Restore both files together from one snapshot so the plaintext and its
     # cached bcrypt hash stay consistent. These must land before the prometheus
@@ -94,4 +99,4 @@ restic_restore_bundles:
         - /root/prometheus_basic_auth_password.txt
         - /root/prometheus_basic_auth_password_hash.txt
       latest: true
-    restore_required: false
+    restore_required: true
