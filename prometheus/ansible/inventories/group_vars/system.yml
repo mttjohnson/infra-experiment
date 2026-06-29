@@ -58,9 +58,23 @@ restic_fetch_password_to_control: true
 restic_control_dir: "{{ inventory_dir }}/../restic-state"
 
 # Secondary off-box copy on the NFS-backed NAS volume mounted at /backups.
-# Replicated from the primary (/data/backups) via restic copy, with symmetric
-# retention and integrity checks. Shares the primary repository password.
+# Replicated from the primary (/data/backups) via restic copy, with integrity
+# checks. Shares the primary repository password.
 restic_secondary_repository: /backups
+
+# Asymmetric retention: the local /data primary keeps a shorter tail to save
+# disk; the off-box NAS keeps the longer tail and is the last-resort recovery
+# source. `restic copy` only ever adds snapshots, so the longer NAS tail
+# survives a polluting fresh-start far longer than the local copy. See
+# the restic role RECOVERY.md.
+restic_keep_daily: 7
+restic_keep_weekly: 4
+restic_keep_monthly: 3
+restic_keep_yearly: 0
+restic_secondary_keep_daily: 7
+restic_secondary_keep_weekly: 4
+restic_secondary_keep_monthly: 12
+restic_secondary_keep_yearly: 3
 
 # restic_restore restores each bundle from whichever source holds the newest
 # matching snapshot. The default sources are the primary env (/etc/restic/env)

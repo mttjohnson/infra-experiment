@@ -12,6 +12,8 @@
 # Ignore temp packer inventory files
 /inventories/packer-provisioner-ansible*
 
-# Ignore restic repository password files (secret); other restic-state files
-# (repo-id pins, volume sentinel ids) are non-secret and committable.
+# Ignore restic repository password files and their re-key archives (secret);
+# other restic-state files (repo-id pins, volume sentinel ids) are non-secret
+# and committable.
 /restic-state/*.password
+/restic-state/*.password.*.bak
