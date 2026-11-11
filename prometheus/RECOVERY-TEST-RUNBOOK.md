@@ -13,19 +13,15 @@ and investigate before continuing — a later test assumes every earlier one pas
 
 ---
 
-## 0. Known issues
+## 0. Open issues
 
-Found while preparing this runbook. Items marked **Fixed** were corrected in the roles and
-validated in check mode on 2026-11-05; the rest are still open.
+Current limitations to keep in mind while testing.
 
 | # | Severity | Issue | Effect on testing |
 |---|---|---|---|
-| 1 | High (**Fixed**) | `/etc/restic/blessed` lives on the root disk, so it survives a `/data`-only rebuild. `restic_restore` removes it only *after* the bundle loop; if a restore task errors mid-loop, the play aborts with the host **still blessed**. The next scheduled backup can then capture partial state and `restic copy` it to the NAS, where it becomes the newest snapshot (newest wins on the next restore). | **Fixed.** The marker is now removed before the `restic` role re-initializes a primary during recovery, and before `restic_restore` restores any bundle. It's written back only at the end. Tests 2b and 7 show the removal. |
-| 2 | Medium | `restic_failure_command` is unset, so a locked-out or failing job only shows in `journalctl` — nothing alerts you. The fail-closed lockout is only as loud as someone noticing it. | Test 1 shows this. Set a healthchecks-style command before relying on the lockout. |
-| 3 | Low (**Fixed**) | The blessed marker embedded a `blessed_at` timestamp, so the converged host reported `changed=1` on every run. | **Fixed.** The content is now deterministic. The first check after the fix shows a one-time diff (`blessed_at` removed, `managed_by` added); after your next apply a healthy host shows `changed=0`. |
-| 4 | Low/Med | After a `/data` rebuild the local primary is re-initialized with fresh chunker params (not copied from the NAS), so `restic copy` dedups poorly. The new repo id also makes the write-once primary pin warn on every later run. There is no documented re-pin step yet. | Expect the primary repo-id **MISMATCH** warning on the run *after* Tests 7/9. Test 7 recommends rolling back for this reason. |
-| 5 | Info | Tofu's provisioning `null_resource`s trigger on instance **names**, so replacing the instance with the same name does **not** re-run the playbooks. If a plan ever shows them being replaced, tofu runs a **real** `system.yml` apply with no check-mode preview. | Run the playbooks yourself after a tofu rebuild, check mode first. |
-| 6 | **Critical** (**Fixed**) | Bundle snapshot queries ran `restic snapshots … --last 0`. In current restic `--last` is a deprecated boolean, so the `0` became a snapshot-ID filter, and restic then dropped the `--path` filter and returned `[]` with exit 0. Every bundle reported "no matching snapshot", so no rebuild could ever have restored anything. This predates the recovery work. | **Fixed.** All matching snapshots are listed and the newest is picked; the reachability probe uses `--latest 1`. Test 2b proves all three bundles now resolve. |
+| 1 | Medium | `restic_failure_command` is unset, so a locked-out or failing job only shows in `journalctl` — nothing alerts you. The fail-closed lockout is only as loud as someone noticing it. | Test 1 shows this. Set a healthchecks-style command before relying on the lockout. |
+| 2 | Low/Med | After a `/data` rebuild the local primary is re-initialized with fresh chunker params (not copied from the NAS), so `restic copy` dedups poorly. The new repo id also makes the write-once primary pin warn on every later run. There is no documented re-pin step yet. | Expect the primary repo-id **MISMATCH** warning on the run *after* Tests 7/9. Test 7 recommends rolling back for this reason. |
+| 3 | Info | Tofu's provisioning `null_resource`s trigger on instance **names**, so replacing the instance with the same name does **not** re-run the playbooks. If a plan ever shows them being replaced, tofu runs a **real** `system.yml` apply with no check-mode preview. | Run the playbooks yourself after a tofu rebuild, check mode first. |
 
 ---
 
@@ -57,7 +53,7 @@ validated in check mode on 2026-11-05; the rest are still open.
 | Control-node key (secret, git-ignored) | `prometheus/ansible/restic-state/prometheus.password` |
 | Control-node pins (committed) | `restic-state/prometheus.{primary,secondary}.repo-id`, `restic-state/prometheus.volume.sentinel-id` |
 | Host key / env | `/etc/restic/password`, `/etc/restic/env` (primary), `/etc/restic/env.secondary` |
-| Blessed marker | `/etc/restic/blessed` (root disk — see issue #1) |
+| Blessed marker | `/etc/restic/blessed` (root disk) |
 | Primary repo (local) | `/data/backups` on Incus volume `prometheus-data` (pool `local`) |
 | Volume sentinel | `/data/.restic-volume-id` |
 | Secondary repo (NAS) | `/backups` on Incus volume `prometheus` (pool `nas_lab_backup`) |
@@ -148,7 +144,7 @@ Record each output in the results log:
 can touch.
 
 **Why:** The NAS is the last-resort copy, and Tests 7 and 9 depend on it entirely. If
-a bug adds a partial "newest" snapshot (issue #1), or something goes wrong mid-test,
+a bug adds a partial "newest" snapshot, or something goes wrong mid-test,
 this copy is the way back.
 
 Preferred: take a NAS-level snapshot of the share backing the `nas_lab_backup` pool
@@ -175,13 +171,9 @@ Compare with a hash of the password-manager copy.
 
 **Why:** A clean baseline means any change in later tests is caused by the test.
 
-**Expected:** `failed=0`. No sentinel or repo-id warnings. All three bundles report
-`SKIP (target already populated)`, and both "Unbless host before…" tasks are skipped.
-
-The first check after the 2026-11-05 fixes shows `changed=1`: a one-time marker diff
-(`blessed_at` removed, `managed_by` added). Apply once with
-`--tags restic,restic_restore`; from then on the baseline is `changed=0`. Any other
-change on a converged host is a real signal to investigate.
+**Expected:** `failed=0`, `changed=0`. No sentinel or repo-id warnings. All three
+bundles report `SKIP (target already populated)`, and both "Unbless host before…" tasks
+are skipped. Any change on a converged host is a real signal to investigate.
 
 ### 0.6 Clean git state
 
@@ -227,7 +219,7 @@ Re-run `restic snapshots` for both repos and compare the counts to 0.2.
 `ERROR: /etc/restic/blessed absent — host is not blessed for backups`;
 `restic-check` succeeds; snapshot counts are unchanged.
 
-**Also note:** did anything alert you? With `restic_failure_command` unset (issue #2),
+**Also note:** did anything alert you? With `restic_failure_command` unset (issue #1),
 nothing will — a real lockout would only show in journald.
 
 **Rollback:** continue to Test 2, which re-blesses the host. Afterwards:
@@ -259,8 +251,9 @@ written.
 
 **Why it matters:** On a converged host every bundle is already populated, so normal
 runs skip the snapshot query and can't tell you whether a rebuild would actually find
-anything. This test is what exposed issue #6 (every query silently returning nothing).
-Re-run it whenever you change backup paths or bundle selectors.
+anything. A broken selector or query fails silently: bundles just report
+`no matching snapshot`, which only bites during a real rebuild. Re-run this test whenever
+you change backup paths, bundle selectors, or the restic version.
 
 **Steps (control node):**
 
@@ -473,7 +466,7 @@ final `ls` should show only `.pretest`.
   population check passes.
 - The host is blessed.
 - No repo-id warning on this run. The primary was unreadable when its id was read, so
-  the mismatch only appears on the **next** check run (issue #4).
+  the mismatch only appears on the **next** check run (issue #2).
 
 **If the apply fails**, check immediately on the host that it was left unblessed:
 
@@ -482,8 +475,8 @@ ls -la /etc/restic/blessed
 systemctl stop 'restic-*.timer'
 ```
 
-`ls` should report no such file — that's the issue #1 fix working, and the scheduled
-jobs will refuse to run. If the marker does exist after a failed recovery, that's a bug:
+`ls` should report no such file — the marker is removed before any re-init or restore
+is attempted, so the scheduled jobs will refuse to run. If the marker does exist after a failed recovery, that's a bug:
 move it aside (`mv /etc/restic/blessed /root/blessed.failed`) so no backup or copy can
 run, and investigate before continuing.
 
@@ -504,7 +497,7 @@ Then run the full play (check first, then apply). Prometheus should start, serve
 UI and API, and show history up to the 0.1 snapshot.
 
 **Rollback** (recommended; this keeps the original primary history, chunker params,
-and pin — issue #4):
+and pin — issue #2):
 
 ```bash
 systemctl stop prometheus
@@ -519,7 +512,7 @@ Then run the full play (check, then apply) and confirm the check is back to base
 
 If you'd rather **keep** the restored state, the fresh primary needs re-pinning: delete
 `restic-state/prometheus.primary.repo-id`, apply, and commit the new pin. It will still
-dedup poorly against the NAS until issue #4 is addressed.
+dedup poorly against the NAS until issue #2 is addressed.
 
 ### Test 8 — Full instance rebuild (root disk fresh; `/data` and NAS intact)
 
@@ -539,7 +532,7 @@ tofu plan -replace='incus_instance.system["prometheus"]'
 ```
 
 Check that **only** the instance is replaced — both storage volumes untouched, no
-`null_resource` replaced (issue #5). If anything else changes, **stop**. Then:
+`null_resource` replaced (issue #3). If anything else changes, **stop**. Then:
 
 ```bash
 tofu apply -replace='incus_instance.system["prometheus"]'
@@ -564,7 +557,7 @@ plan shows as unresolved. That's expected. Signals: the password would be **seed
 - `letsencrypt` and `prometheus` are skipped (populated).
 - The host is blessed.
 
-Then run the full play (check, then apply). Tofu won't run it for you (issue #5).
+Then run the full play (check, then apply). Tofu won't run it for you (issue #3).
 
 **Verify:**
 
@@ -607,7 +600,7 @@ apply the restic tags.
 - Sentinel "pinned but absent" note.
 - All three bundles restored from `secondary`.
 - Post-restore checks pass; host blessed.
-- On the next check run: primary repo-id MISMATCH (issue #4).
+- On the next check run: primary repo-id MISMATCH (issue #2).
 
 **Verify:** everything in Test 8's verify list, plus the restore-fidelity checks
 against 0.2: certificate fingerprint, basic-auth hashes, and TSDB blocks up to the 0.1
@@ -616,7 +609,7 @@ before the prometheus role creates its user.
 
 Afterwards, re-pin the primary (delete the control-node pin, apply, commit). Decide
 whether to re-initialize the primary with NAS chunker params before backups accumulate
-(issue #4).
+(issue #2).
 
 ### Test 10 (optional) — NAS unavailable during recovery
 
