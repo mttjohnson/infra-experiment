@@ -138,6 +138,97 @@ Record each output in the results log:
 | Blessed marker | `cat /etc/restic/blessed` |
 | Prometheus uid | `id prometheus` (see the ownership watch item in Tests 8/9) |
 
+```
+root@prometheus:~#
+set -a
+. /etc/restic/env
+set +a
+root@prometheus:~# restic snapshots --latest 1
+repository 9e4272ae opened (version 2, compression level auto)
+ID        Time                 Host                    Tags        Paths                                          Size
+-----------------------------------------------------------------------------------------------------------------------------
+736e5860  2026-05-24 20:46:16  prometheus.hc.deney.io  scheduled   /etc                                           1.667 MiB
+
+74172c6b  2026-06-28 02:24:01  prometheus.hc.deney.io  scheduled   /data/letsencrypt                              1.752 MiB
+                                                                   /etc
+
+7774759b  2026-11-12 04:12:02  prometheus.hc.deney.io  scheduled   /data/letsencrypt                              117.812 MiB
+                                                                   /data/prometheus
+                                                                   /etc
+                                                                   /root/prometheus_basic_auth_password.txt
+                                                                   /root/prometheus_basic_auth_password_hash.txt
+-----------------------------------------------------------------------------------------------------------------------------
+Timestamps shown in local time
+3 snapshots
+root@prometheus:~# restic cat config
+repository 9e4272ae opened (version 2, compression level auto)
+{
+  "version": 2,
+  "id": "9e4272aefe5555c88c6032de99d14c4850e85155998629f3e998026f01ba1d76",
+  "chunker_polynomial": "38e7653ed3b299"
+}
+
+
+
+root@prometheus:~#
+set -a
+. /etc/restic/env.secondary
+set +a
+root@prometheus:~# restic cat config
+repository 305e3164 opened (version 2, compression level auto)
+{
+  "version": 2,
+  "id": "305e3164ed5a8ceb7dd75c69f08592b111d42576e9cff11c86aa9ac245ec0bc1",
+  "chunker_polynomial": "38e7653ed3b299"
+}
+root@prometheus:~# restic snapshots --latest 1
+repository 305e3164 opened (version 2, compression level auto)
+ID        Time                 Host                    Tags        Paths                                          Size
+-----------------------------------------------------------------------------------------------------------------------------
+a3dd859b  2026-05-24 20:46:16  prometheus.hc.deney.io  scheduled   /etc                                           1.667 MiB
+
+b1c02385  2026-06-28 02:24:01  prometheus.hc.deney.io  scheduled   /data/letsencrypt                              1.752 MiB
+                                                                   /etc
+
+8f391128  2026-11-12 04:12:02  prometheus.hc.deney.io  scheduled   /data/letsencrypt                              117.812 MiB
+                                                                   /data/prometheus
+                                                                   /etc
+                                                                   /root/prometheus_basic_auth_password.txt
+                                                                   /root/prometheus_basic_auth_password_hash.txt
+-----------------------------------------------------------------------------------------------------------------------------
+Timestamps shown in local time
+3 snapshots
+
+
+
+root@prometheus:~# cat /data/.restic-volume-id
+a4467a9a-100c-431d-8165-40e54e53620c
+root@prometheus:~# sha256sum /root/prometheus_basic_auth_password.txt /root/prometheus_basic_auth_password_hash.txt
+fe7a0791adf70f55e6bbfdea54863fe27f963f41ec0de8a5a2f210b27dbd6093  /root/prometheus_basic_auth_password.txt
+dfa051f59085e31d114f2a514286b352572d9c4872e5d3ba7fd06dfca1ea6afb  /root/prometheus_basic_auth_password_hash.txt
+root@prometheus:~# openssl x509 -noout -fingerprint -sha256 -in /data/letsencrypt/live/prometheus.hc.deney.io/cert.pem
+sha256 Fingerprint=EF:7C:A6:05:05:3F:A0:BB:55:2B:20:4E:3D:6E:4E:5B:95:5D:CA:56:4E:50:77:A9:A8:3B:B9:73:8D:FD:7E:A9
+root@prometheus:~# ls /data/prometheus
+01M4XNQ96YTF6RTAZAFK3BFX30  01M5MV9R7297K467GKGX94ZZTD  01M6C0W772TCK02DWH18GJF5GN  01M736EP8FWG79NYMXXR0ZP8TE  01M76DEJSA8H6T2ZQGB29WJWYD  chunks_head
+01M53F3WZRKPBGG92TMQQXWNF1  01M5TMPC00ZWVGAFQDGG187H2V  01M6HT8TZ0SMJPWZTYCRJ8C7J9  01M75487ESMD7D27CW30M2W4WK  01M76DEJTTA0ZQ2Y5ND5KP5Z0M  lock
+01M598GGQBMD52TZQGATNG0SB5  01M60E2ZQ1QDATPR7SHGFAHGYB  01M6QKNES7QV764Z2DAJRSWQEA  01M75RVD3W5N38RKFBFBFPP4D4  01M76MAA1DPCNT2P58SPJ8MS5Q  queries.active
+01M5F1X4FXBHXKMDC9YASAKTSF  01M667FKG1BF4HT1GZ0J3Y8PZD  01M6XD22GKC745JZ6G4027Y85S  01M766JVHC3H3GN26AZ20PCG76  01M76V619AF1NS8NZR709Q4MEQ  wal
+root@prometheus:~# du -sh /data/prometheus
+44M     /data/prometheus
+root@prometheus:~# df -h /data
+Filesystem                            Size  Used Avail Use% Mounted on
+local/custom/default_prometheus-data   50G  148M   50G   1% /data
+root@prometheus:~# cat /etc/restic/blessed
+{
+    "fresh_start": false,
+    "managed_by": "restic_restore role; restic jobs refuse to run without this file (see restic role RECOVERY.md)",
+    "recovery_expected": true,
+    "unsatisfied_critical": []
+}
+root@prometheus:~# id prometheus
+uid=999(prometheus) gid=988(prometheus) groups=988(prometheus),989(cert-access)
+```
+
 ### 0.3 Protect the NAS repository
 
 **What:** Make an independent copy of the NAS repository that nothing in these tests
@@ -151,6 +242,16 @@ Preferred: take a NAS-level snapshot of the share backing the `nas_lab_backup` p
 (for example a Synology Btrfs snapshot of the folder). Otherwise copy the repository
 directory somewhere outside both the instance and that pool — a restic repo is plain
 files, so a copy is a valid repo. Verify the copy: `restic -r <copy-path> snapshots`.
+
+```bash
+source="mattjohnson@tauro:/srv/nas_lab_backup/tauro/custom/default_prometheus/"
+destination="./prometheus-backup/"
+
+mkdir -p "${destination}"
+rsync -avz --rsync-path="sudo rsync" \
+  "${source}" \
+  "${destination}"
+```
 
 ### 0.4 Verify the off-host password copy
 
@@ -168,6 +269,10 @@ Compare with a hash of the password-manager copy.
 ### 0.5 Baseline check run
 
 **What:** Run the check command on the converged host.
+
+```bash
+ansible-playbook playbooks/system.yml --diff --check --tags restic,restic_restore
+```
 
 **Why:** A clean baseline means any change in later tests is caused by the test.
 
@@ -206,11 +311,45 @@ systemctl start restic-backup.service
 journalctl -u restic-backup.service -n 20 --no-pager
 ```
 
+```
+Nov 12 04:24:17 prometheus.hc.deney.io systemd[1]: Starting restic-backup.service - Restic backup...
+Nov 12 04:24:17 prometheus.hc.deney.io restic-backup.sh[30795]: ERROR: /etc/restic/blessed absent — host is not blessed for backups; refusing to run (unresolved rebuild/recovery?)
+Nov 12 04:24:17 prometheus.hc.deney.io systemd[1]: restic-backup.service: Main process exited, code=exited, status=1/FAILURE
+Nov 12 04:24:17 prometheus.hc.deney.io systemd[1]: restic-backup.service: Failed with result 'exit-code'.
+Nov 12 04:24:17 prometheus.hc.deney.io systemd[1]: Failed to start restic-backup.service - Restic backup.
+```
+
 Repeat the last two lines for `restic-forget`, `restic-prune`, `restic-copy`,
 `restic-forget-secondary`, and `restic-prune-secondary`. Then:
 
 ```bash
+systemctl start restic-forget.service
+journalctl -u restic-forget.service -n 20 --no-pager
+systemctl start restic-prune.service
+journalctl -u restic-prune.service -n 20 --no-pager
+systemctl start restic-copy.service
+journalctl -u restic-copy.service -n 20 --no-pager
+systemctl start restic-forget-secondary.service
+journalctl -u restic-forget-secondary.service -n 20 --no-pager
+systemctl start restic-prune-secondary.service
+journalctl -u restic-prune-secondary.service -n 20 --no-pager
+```
+
+```bash
 systemctl start restic-check.service
+```
+
+```
+Nov 12 04:27:44 prometheus.hc.deney.io systemd[1]: Starting restic-check.service - Restic check (metadata)...
+Nov 12 04:27:44 prometheus.hc.deney.io restic-check.sh[30842]: using temporary cache in /tmp/restic-check-cache-1218950457
+Nov 12 04:27:44 prometheus.hc.deney.io restic-check.sh[30842]: create exclusive lock for repository
+Nov 12 04:27:45 prometheus.hc.deney.io restic-check.sh[30842]: load indexes
+Nov 12 04:27:45 prometheus.hc.deney.io restic-check.sh[30842]: check all packs
+Nov 12 04:27:45 prometheus.hc.deney.io restic-check.sh[30842]: check snapshots, trees and blobs
+Nov 12 04:27:45 prometheus.hc.deney.io restic-check.sh[30842]: [0:00] 100.00%  25 / 25 snapshots
+Nov 12 04:27:45 prometheus.hc.deney.io restic-check.sh[30842]: no errors were found
+Nov 12 04:27:45 prometheus.hc.deney.io systemd[1]: restic-check.service: Deactivated successfully.
+Nov 12 04:27:45 prometheus.hc.deney.io systemd[1]: Finished restic-check.service - Restic check (metadata).
 ```
 
 Re-run `restic snapshots` for both repos and compare the counts to 0.2.
@@ -235,11 +374,34 @@ Otherwise every rebuild needs a manual step that's easy to forget.
 
 **Steps (control node):** check run, then real apply (restic tags).
 
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore --check
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore
+```
+
 **Expected (check):** "Bless host for backups (write blessed marker)" would change; no
 failures or warnings.
 
 **Expected (apply):** marker recreated; timers started again (changed — they were
 stopped). `systemctl list-timers 'restic-*'` shows all ten timers scheduled.
+
+```
+root@prometheus:~# systemctl list-timers 'restic-*'
+NEXT                                  LEFT LAST                              PASSED UNIT                              ACTIVATES
+Fri 2026-11-13 02:12:55 UTC            21h Thu 2026-11-12 02:28:30 UTC 2h 20min ago restic-backup.timer               restic-backup.service
+Fri 2026-11-13 03:18:59 UTC            22h Thu 2026-11-12 03:03:17 UTC 1h 45min ago restic-copy.timer                 restic-copy.service
+Fri 2026-11-13 03:30:26 UTC            22h Thu 2026-11-12 03:57:26 UTC    51min ago restic-forget.timer               restic-forget.service
+Fri 2026-11-13 03:57:26 UTC            23h Thu 2026-11-12 03:49:26 UTC    59min ago restic-forget-secondary.timer     restic-forget-secondary.service
+Sat 2026-11-14 05:17:28 UTC         2 days Sat 2026-11-07 05:18:26 UTC   4 days ago restic-check.timer                restic-check.service
+Sat 2026-11-14 05:57:43 UTC         2 days Sat 2026-11-07 05:44:20 UTC   4 days ago restic-check-secondary.timer      restic-check-secondary.service
+Sun 2026-11-15 04:01:29 UTC         2 days Sun 2026-11-08 04:13:19 UTC   4 days ago restic-prune.timer                restic-prune.service
+Sun 2026-11-15 04:34:07 UTC         2 days Sun 2026-11-08 04:52:20 UTC   3 days ago restic-prune-secondary.timer      restic-prune-secondary.service
+Sun 2026-12-06 06:23:31 UTC 3 weeks 3 days Sun 2026-11-01 06:28:49 UTC            - restic-check-data.timer           restic-check-data.service
+Sun 2026-12-06 06:42:53 UTC 3 weeks 3 days Sun 2026-11-01 06:40:49 UTC            - restic-check-data-secondary.timer restic-check-data-secondary.service
+
+10 timers listed.
+Pass --all to see loaded but inactive timers, too.
+```
 
 ### Test 2b — Restore-selection dry run (non-destructive)
 
@@ -270,6 +432,35 @@ restoring" would change. There are no "would fail" warnings, and `failed=0`. Any
 showing `no matching snapshot` is a problem that would block real recovery — stop and
 investigate.
 
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            prometheus_basic_auth
+        paths:             ['/root/prometheus_basic_auth_password.txt', '/root/prometheus_basic_auth_password_hash.txt']
+        target:            /tmp/restore-dryrun
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/root/prometheus_basic_auth_password.txt', '/root/prometheus_basic_auth_password_hash.txt']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: primary, secondary
+        snapshot:          7774759b
+          @ 2026-11-12T04:12:02.085120171Z
+          (host=prometheus.hc.deney.io,
+           tags=['scheduled'])
+        chosen_source:     primary
+        targets_populated: False
+        action:            RESTORE
+
+TASK [mttjohnson.infra.restic_restore : Unbless host before restoring (fail closed while a restore is in progress)] *****************************************
+changed: [prometheus]
+
+PLAY RECAP **************************************************************************************************************************************************
+prometheus                 : ok=105  changed=6    unreachable=0    failed=0    skipped=80   rescued=0    ignored=0
+```
+
 ### Test 3 — Wrong-volume detection (sentinel mismatch)
 
 **What it tests:** If a different volume is mounted at `/data`, the role refuses to
@@ -288,11 +479,53 @@ echo bogus-volume-id > /data/.restic-volume-id
 Then run the check on the control node. Optionally run the real apply with
 `--tags restic` to see the hard stop.
 
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic --check
+ansible-playbook playbooks/system.yml --diff --tags restic
+```
+
 **Expected (check):** `WARNING: a real run WOULD FAIL — a different data volume is
 mounted than pinned`.
 
+```
+TASK [mttjohnson.infra.restic : Warn on volume sentinel anomaly (check mode / rebuilt-looking volume)] ******************************************************
+ok: [prometheus] =>
+    msg: 'WARNING: a real run WOULD FAIL — a different data volume is mounted than pinned
+        (host=bogus-volume-id, pin=a4467a9a-100c-431d-8165-40e54e53620c).'
+```
+
 **Expected (apply):** fails at "Fail when a different data volume is mounted than
 expected", before any init or restore.
+
+```
+TASK [mttjohnson.infra.restic : Fail when a different data volume is mounted than expected (real run)] ******************************************************
+[ERROR]: Task failed: Action failed: The data volume mounted at /data does not match the
+volume pinned for this host:
+  on-host sentinel /data/.restic-volume-id: bogus-volume-id
+  control-node pin /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.volume.sentinel-id: a4467a9a-100c-431d-8165-40e54e53620c
+Refusing to operate on the wrong disk. If this is an intentional replacement,
+set restic_force_fresh_start=prometheus to adopt it.
+
+Origin: /home/selvaran/projects/infra-experiment/prometheus/ansible/collections/ansible_collections/mttjohnson/infra/roles/restic/tasks/main.yml:292:3
+
+290 # Unambiguous (both ids present and differ) — refuse rather than operate on the
+291 # wrong disk. Override with restic_force_fresh_start to adopt the new volume.
+292 - name: Fail when a different data volume is mounted than expected (real run)
+      ^ column 3
+
+fatal: [prometheus]: FAILED! =>
+    changed: false
+    msg: |-
+        The data volume mounted at /data does not match the
+        volume pinned for this host:
+          on-host sentinel /data/.restic-volume-id: bogus-volume-id
+          control-node pin /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.volume.sentinel-id: a4467a9a-100c-431d-8165-40e54e53620c
+        Refusing to operate on the wrong disk. If this is an intentional replacement,
+        set restic_force_fresh_start=prometheus to adopt it.
+
+PLAY RECAP **************************************************************************************************************************************************
+prometheus                 : ok=23   changed=0    unreachable=0    failed=1    skipped=10   rescued=0    ignored=0
+```
 
 **Rollback:**
 
@@ -301,6 +534,11 @@ cp /root/sentinel.pretest /data/.restic-volume-id
 ```
 
 Run the check again: no sentinel warning.
+
+```
+TASK [mttjohnson.infra.restic : Warn on volume sentinel anomaly (check mode / rebuilt-looking volume)] ******************************************************
+skipping: [prometheus]
+```
 
 ### Test 4 — Repository identity pin mismatch
 
@@ -319,12 +557,57 @@ echo 0000000000000000 > restic-state/prometheus.primary.repo-id
 
 Run the check, then run it again with `-e restic_repo_id_pin_strict=true`.
 
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic --check -e restic_repo_id_pin_strict=true
+ansible-playbook playbooks/system.yml --diff --tags restic -e restic_repo_id_pin_strict=true
+```
+
 **Expected:** `WARNING: restic repository identity differs from the pinned value —
 primary MISMATCH`. With strict on, the warning adds
 `A real run with restic_repo_id_pin_strict would FAIL here.`
 
+```
+TASK [mttjohnson.infra.restic : Fail on repository identity mismatch (strict, real run)] ********************************************************************
+skipping: [prometheus]
+
+TASK [mttjohnson.infra.restic : Warn on repository identity mismatch] ***************************************************************************************
+ok: [prometheus] =>
+    msg: 'WARNING: restic repository identity differs from the pinned value — primary
+        MISMATCH (pinned 0000000000000000 != live 9e4272aefe5555c88c6032de99d14c4850e85155998629f3e998026f01ba1d76);
+        secondary ok. A real run with restic_repo_id_pin_strict would FAIL here.'
+```
+
+```
+TASK [mttjohnson.infra.restic : Fail on repository identity mismatch (strict, real run)] ********************************************************************
+[ERROR]: Task failed: Action failed: restic repository identity differs from the pinned value (pointed at a different
+or re-initialized repository than before):
+  primary: pinned 0000000000000000 != live 9e4272aefe5555c88c6032de99d14c4850e85155998629f3e998026f01ba1d76
+
+Origin: /home/selvaran/projects/infra-experiment/prometheus/ansible/collections/ansible_collections/mttjohnson/infra/roles/restic/tasks/main.yml:778:3
+
+776   when: restic_repo_id_pin_enabled | bool
+777
+778 - name: Fail on repository identity mismatch (strict, real run)
+      ^ column 3
+
+fatal: [prometheus]: FAILED! =>
+    changed: false
+    msg: |-
+        restic repository identity differs from the pinned value (pointed at a different
+        or re-initialized repository than before):
+          primary: pinned 0000000000000000 != live 9e4272aefe5555c88c6032de99d14c4850e85155998629f3e998026f01ba1d76
+
+PLAY RECAP **************************************************************************************************************************************************
+prometheus                 : ok=42   changed=0    unreachable=0    failed=1    skipped=31   rescued=0    ignored=0
+```
+
 **Rollback:** `git checkout -- restic-state/prometheus.primary.repo-id`, then run the
 check again: no warning.
+
+```
+TASK [mttjohnson.infra.restic : Warn on repository identity mismatch] ***************************************************************************************
+skipping: [prometheus]
+```
 
 ### Test 5 — Control-node key lost, host intact
 
@@ -342,10 +625,53 @@ mv restic-state/prometheus.password ~/prometheus.password.pretest
 
 Run the check, then the real apply with `--tags restic`.
 
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic --check
+ansible-playbook playbooks/system.yml --diff --tags restic
+```
+
 **Expected (check):** no fail-early warning (the host still has the key); "Fetch
 restic password file to control node" would run; generate/seed are skipped.
 
+```
+TASK [mttjohnson.infra.restic : Fetch restic password file to control node] *********************************************************************************
+skipping: [prometheus]
+
+TASK [mttjohnson.infra.restic : Tighten permissions on fetched password file] *******************************************************************************
+[ERROR]: Task failed: Module failed: file (/home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.password) is absent, cannot continue
+Origin: /home/selvaran/projects/infra-experiment/prometheus/ansible/collections/ansible_collections/mttjohnson/infra/roles/restic/tasks/main.yml:445:7
+
+443       ignore_errors: "{{ ansible_check_mode }}"
+444
+445     - name: Tighten permissions on fetched password file
+          ^ column 7
+
+fatal: [prometheus -> localhost]: FAILED! =>
+    changed: false
+    msg: file (/home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.password)
+        is absent, cannot continue
+    path: /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.password
+    state: absent
+...ignoring
+```
+
 **Expected (apply):** `restic-state/prometheus.password` is recreated.
+
+```
+TASK [mttjohnson.infra.restic : Fetch restic password file to control node] *********************************************************************************
+changed: [prometheus]
+
+TASK [mttjohnson.infra.restic : Tighten permissions on fetched password file] *******************************************************************************
+--- before
++++ after
+@@ -1,3 +1,3 @@
+-    mode: '0664'
++    mode: '0600'
+     path: /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.password
+
+
+changed: [prometheus -> localhost]
+```
 
 **Verify:**
 
@@ -381,15 +707,70 @@ mv /etc/restic/password /root/password.pretest
 Run the check. **Only if it shows the warning below**, run the real apply with
 `--tags restic`.
 
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic --check
+ansible-playbook playbooks/system.yml --diff --tags restic
+```
+
 **Expected (check):** `WARNING: a real run WOULD FAIL here — an initialized restic
 repository exists … but no password is available`. If this warning is missing,
 **stop** — do not apply.
 
+```
+TASK [mttjohnson.infra.restic : Fail early when a repository exists but no password is available (real run)] ************************************************
+skipping: [prometheus]
+
+TASK [mttjohnson.infra.restic : Warn when a repository exists but no password is available (check mode)] ****************************************************
+ok: [prometheus] =>
+    msg: 'WARNING: a real run WOULD FAIL here — an initialized restic repository exists
+        (primary=True, secondary=True) but no password is available (host=False, control=False).
+        Recover the control-node key and re-run.'
+```
+
 **Expected (apply):** fails at "Fail early when a repository exists but no password is
 available".
 
+```
+TASK [mttjohnson.infra.restic : Fail early when a repository exists but no password is available (real run)] ************************************************
+[ERROR]: Task failed: Action failed: An initialized restic repository exists but no password is available to read it:
+  host key   /etc/restic/password: MISSING
+  control key /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.password: MISSING
+  primary repo /data/backups: present
+  secondary repo /backups: present
+Refusing to generate a new password or initialize over the existing repository —
+that would orphan the existing backups. Recover the control-node password copy
+from your off-host secret store into /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/ and re-run.
+
+Origin: /home/selvaran/projects/infra-experiment/prometheus/ansible/collections/ansible_collections/mttjohnson/infra/roles/restic/tasks/main.yml:326:3
+
+324 # by restic_force_fresh_start — the operator must recover the key (or remove the
+325 # repositories) deliberately.
+326 - name: Fail early when a repository exists but no password is available (real run)
+      ^ column 3
+
+fatal: [prometheus]: FAILED! =>
+    changed: false
+    msg: |-
+        An initialized restic repository exists but no password is available to read it:
+          host key   /etc/restic/password: MISSING
+          control key /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/prometheus.password: MISSING
+          primary repo /data/backups: present
+          secondary repo /backups: present
+        Refusing to generate a new password or initialize over the existing repository —
+        that would orphan the existing backups. Recover the control-node password copy
+        from your off-host secret store into /home/selvaran/projects/infra-experiment/prometheus/ansible/inventories/../restic-state/ and re-run.
+
+PLAY RECAP **************************************************************************************************************************************************
+prometheus                 : ok=23   changed=0    unreachable=0    failed=1    skipped=12   rescued=0    ignored=0
+```
+
 **Verify:** `/etc/restic/password` was not recreated; no control-node password file
 was created; `restic cat config` ids (after rollback) still match the pins.
+
+```
+root@prometheus:~# ls -la /etc/restic/password
+ls: cannot access '/etc/restic/password': No such file or directory
+```
 
 **Rollback:**
 
@@ -406,6 +787,15 @@ mv ~/prometheus.password.pretest2 restic-state/prometheus.password
 ```
 
 Run the check: clean. Confirm both `sha256sum` values match 0.4.
+
+```
+(prometheus) selvaran@selvaran:~/projects/infra-experiment/prometheus/ansible$ sha256sum restic-state/prometheus.password
+f2fe5388caf0ad371091b53084700f254c6dc3a9c14bd8ee74113f7b849a43ee  restic-state/prometheus.password
+```
+```
+root@prometheus:~# sha256sum /etc/restic/password
+f2fe5388caf0ad371091b53084700f254c6dc3a9c14bd8ee74113f7b849a43ee  /etc/restic/password
+```
 
 ---
 
