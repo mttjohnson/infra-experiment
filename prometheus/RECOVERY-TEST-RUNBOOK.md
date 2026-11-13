@@ -1285,17 +1285,129 @@ tofu plan -replace='incus_instance.system["prometheus"]' -replace='incus_storage
 ```
 
 Check that the **backups volume is untouched**. If it appears in the plan, **stop**.
-Then apply with the same arguments, clear SSH host keys as in Test 8, then check and
-apply the restic tags.
+Then apply with the same arguments, clear SSH host keys as in Test 8
+
+```bash
+tofu apply -replace='incus_instance.system["prometheus"]' -replace='incus_storage_volume.data["prometheus"]'
+ssh-keygen -R 10.10.30.11
+ssh-keygen -R prometheus.hc.deney.io
+```
+
+Then, from `prometheus/ansible`: check, then real apply with restic tags.
+
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore --check
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore
+```
 
 **Expected (apply):**
 
 - Key seeded from the control node.
+```
+TASK [mttjohnson.infra.restic : Seed restic password from the control node (rebuild / recovery)] ****************************************************************
+changed: [prometheus]
+```
+
 - Fresh primary initialized.
+```
+TASK [mttjohnson.infra.restic : Initialize restic repository] ***************************************************************************************************
+changed: [prometheus]
+```
+```
+TASK [mttjohnson.infra.restic : Initialize secondary restic repository (chunker params from primary)] ***********************************************************
+skipping: [prometheus]
+```
+
 - Sentinel "pinned but absent" note.
+```
+TASK [mttjohnson.infra.restic : Write the on-host volume sentinel] **********************************************************************************************
+--- before
++++ after: /data/.restic-volume-id
+@@ -0,0 +1 @@
++a4467a9a-100c-431d-8165-40e54e53620c
+
+changed: [prometheus]
+
+TASK [mttjohnson.infra.restic : Pin the volume sentinel id to the control node] *********************************************************************************
+skipping: [prometheus]
+```
+
 - All three bundles restored from `secondary`.
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] ***********************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            acme_dns
+        paths:             ['/etc/acme_dns_reg', '/etc/acmedns']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/etc']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: primary, secondary
+        snapshot:          e532be65
+          @ 2026-11-13T05:00:11.910870717Z
+          (host=prometheus.hc.deney.io,
+           tags=['scheduled'])
+        chosen_source:     secondary
+        targets_populated: False
+        action:            RESTORE
+```
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] ***********************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            letsencrypt
+        paths:             ['/data/letsencrypt']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/data/letsencrypt']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: primary, secondary
+        snapshot:          e532be65
+          @ 2026-11-13T05:00:11.910870717Z
+          (host=prometheus.hc.deney.io,
+           tags=['scheduled'])
+        chosen_source:     secondary
+        targets_populated: False
+        action:            RESTORE
+```
+
 - Post-restore checks pass; host blessed.
+```
+TASK [mttjohnson.infra.restic_restore : Bless host for backups (write blessed marker)] **************************************************************************
+--- before
++++ after: /etc/restic/blessed
+@@ -0,0 +1,6 @@
++{
++    "fresh_start": false,
++    "managed_by": "restic_restore role; restic jobs refuse to run without this file (see restic role RECOVERY.md)",
++    "recovery_expected": true,
++    "unsatisfied_critical": []
++}
+
+changed: [prometheus]
+```
+
 - On the next check run: primary repo-id MISMATCH (issue #2).
+```
+TASK [mttjohnson.infra.restic : Warn on repository identity mismatch] *******************************************************************************************
+ok: [prometheus] =>
+    msg: 'WARNING: restic repository identity differs from the pinned value — primary
+        MISMATCH (pinned 9e4272aefe5555c88c6032de99d14c4850e85155998629f3e998026f01ba1d76
+        != live 81a1d573502b1c852e63d88810c5ac2141aff8b53c1f13bd6edbb0c1c0ba2e64); secondary
+        ok. '
+```
+
+```bash
+ansible-playbook playbooks/system.yml --diff --check
+ansible-playbook playbooks/system.yml --diff
+```
 
 **Verify:** everything in Test 8's verify list, plus the restore-fidelity checks
 against 0.2: certificate fingerprint, basic-auth hashes, and TSDB blocks up to the 0.1
