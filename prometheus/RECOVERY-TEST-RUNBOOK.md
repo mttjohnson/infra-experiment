@@ -837,16 +837,156 @@ ls -la /data
 If the first `ls` shows any other entries, move those into `/data/.pretest/` too. The
 final `ls` should show only `.pretest`.
 
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore --check
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore
+```
+
 **Expected (check)** — run on the control node:
 
 - restic: `NOTE: volume sentinel pinned but absent on host — … looks freshly rebuilt or
   unmounted`; no fail-early. "Unbless host before re-initializing the primary during
   recovery" would change. Repository init itself is skipped in check mode.
+
+```
+TASK [mttjohnson.infra.restic : Unbless host before re-initializing the primary during recovery] ************************************************************
+--- before
++++ after
+@@ -1,3 +1,3 @@
+     path: /etc/restic/blessed
+-    state: file
++    state: absent
+
+
+changed: [prometheus]
+```
+
 - restic_restore: source plan `present: primary, secondary; reachable: secondary`
   (the primary has no repository yet). "Unbless host before restoring" would change.
+```
+TASK [mttjohnson.infra.restic_restore : Report restore source plan] *****************************************************************************************
+ok: [prometheus] =>
+    msg: 'restore sources — configured: primary, secondary; present: primary, secondary;
+        reachable: secondary'
+```
+```
+TASK [mttjohnson.infra.restic_restore : Track recovery-critical bundles that cannot be satisfied] ***********************************************************
+ok: [prometheus]
+
+TASK [mttjohnson.infra.restic_restore : Unbless host before restoring (fail closed while a restore is in progress)] *****************************************
+--- before
++++ after
+@@ -1,3 +1,3 @@
+     path: /etc/restic/blessed
+-    state: file
++    state: absent
+
+
+changed: [prometheus]
+```
+
 - `letsencrypt` and `prometheus`: `chosen_source: secondary`, action `RESTORE`.
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            letsencrypt
+        paths:             ['/data/letsencrypt']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/data/letsencrypt']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: secondary
+        snapshot:          8f391128
+          @ 2026-11-12T04:12:02.085120171Z
+          (host=prometheus.hc.deney.io,
+           tags=['scheduled'])
+        chosen_source:     secondary
+        targets_populated: False
+        action:            RESTORE
+```
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            prometheus
+        paths:             ['/data/prometheus']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/data/prometheus']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: secondary
+        snapshot:          8f391128
+          @ 2026-11-12T04:12:02.085120171Z
+          (host=prometheus.hc.deney.io,
+           tags=['scheduled'])
+        chosen_source:     secondary
+        targets_populated: False
+        action:            RESTORE
+```
+
 - `prometheus_basic_auth`: `SKIP (target already populated)` — the root disk is intact.
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            prometheus_basic_auth
+        paths:             ['/root/prometheus_basic_auth_password.txt', '/root/prometheus_basic_auth_password_hash.txt']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/root/prometheus_basic_auth_password.txt', '/root/prometheus_basic_auth_password_hash.txt']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: secondary
+        snapshot:          no matching snapshot
+        chosen_source:     (none)
+        targets_populated: True
+        action:            SKIP (target already populated; idempotency guard)
+```
+
 - No "would fail" warning.
+
+```
+TASK [mttjohnson.infra.restic_restore : Write marker file] **************************************************************************************************
+--- before: /var/lib/restic_restore/letsencrypt.json
++++ after: /var/lib/restic_restore/letsencrypt.json
+@@ -3,7 +3,7 @@
+     "paths": [
+         "/data/letsencrypt"
+     ],
+-    "restored_at": "2026-05-25T17:55:04Z",
++    "restored_at": "2026-11-13T02:14:39Z",
+     "selector": {
+         "host": "",
+         "paths": [
+@@ -12,11 +12,12 @@
+         "tags": []
+     },
+     "snapshot_hostname": "prometheus.hc.deney.io",
+-    "snapshot_id": "0d05a18e4df7f42eaa83cab67c04314552da1e9bb73e575a7e856f0a2276acc6",
+-    "snapshot_short_id": "0d05a18e",
++    "snapshot_id": "8f3911286dbb3c8fe58387ba183568b3f9c965816d646e77fa4a7683615dee95",
++    "snapshot_short_id": "8f391128",
++    "snapshot_source": "secondary",
+     "snapshot_tags": [
+         "scheduled"
+     ],
+-    "snapshot_time": "2026-05-24T20:52:08.028210992Z",
+-    "target": "/data/test_restore"
++    "snapshot_time": "2026-11-12T04:12:02.085120171Z",
++    "target": ""
+ }
+
+changed: [prometheus]
+```
 
 **Expected (apply)** — real apply with restic tags:
 
@@ -882,6 +1022,33 @@ cat /var/lib/restic_restore/prometheus.json
 - TSDB block directories should match. The WAL and any samples written after 0.1 are
   expected to be missing — that's your recovery point.
 - The diagnostic marker should show `"snapshot_source": "secondary"`.
+
+```
+root@prometheus:/data# cat /var/lib/restic_restore/prometheus.json
+{
+    "bundle": "prometheus",
+    "paths": [
+        "/data/prometheus"
+    ],
+    "restored_at": "2026-11-13T02:23:17Z",
+    "selector": {
+        "host": "",
+        "paths": [
+            "/data/prometheus"
+        ],
+        "tags": []
+    },
+    "snapshot_hostname": "prometheus.hc.deney.io",
+    "snapshot_id": "8f3911286dbb3c8fe58387ba183568b3f9c965816d646e77fa4a7683615dee95",
+    "snapshot_short_id": "8f391128",
+    "snapshot_source": "secondary",
+    "snapshot_tags": [
+        "scheduled"
+    ],
+    "snapshot_time": "2026-11-12T04:12:02.085120171Z",
+    "target": ""
+}
+```
 
 Then run the full play (check first, then apply). Prometheus should start, serve its
 UI and API, and show history up to the 0.1 snapshot.
@@ -932,22 +1099,160 @@ ssh-keygen -R prometheus.hc.deney.io
 
 Then, from `prometheus/ansible`: check, then real apply with restic tags.
 
+```bash
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore --check
+ansible-playbook playbooks/system.yml --diff --tags restic,restic_restore
+```
+
 **Expected (check):** limited, because restic isn't installed yet on the fresh root.
 `restic_restore` warns that its gate would fail (binary/env missing) and the restore
 plan shows as unresolved. That's expected. Signals: the password would be **seeded**
 (not generated); primary repo present; sentinel matches.
 
+```
+TASK [mttjohnson.infra.restic_restore : Fail when restic is not installed (real run)] ***********************************************************************
+skipping: [prometheus]
+
+TASK [mttjohnson.infra.restic_restore : Warn when restic is not installed (check mode continues)] ***********************************************************
+ok: [prometheus] =>
+    msg: 'WARNING: restic_restore gate would fail in a real run. Missing: /usr/local/bin/restic,
+        no restore source env file present (tried: /etc/restic/env, /etc/restic/env.secondary).
+        Continuing check-mode inspection so the full per-bundle plan is visible.'
+```
+
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            letsencrypt
+        paths:             ['/data/letsencrypt']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/data/letsencrypt']
+        restore_required:  True
+        gate:              FAILED (binary or env missing)
+        repo:              UNREACHABLE
+        sources_reachable: (none)
+        snapshot:          unresolved (gate/repo failure — would query in a real run)
+        chosen_source:     (none)
+        targets_populated: True
+        action:            SKIP (target already populated; idempotency guard)
+```
+
 **Expected (apply):**
 
 - `/etc/restic/password` is seeded from the control node (no "Generate" task runs).
+```
+TASK [mttjohnson.infra.restic : Seed restic password from the control node (rebuild / recovery)] ************************************************************
+changed: [prometheus]
+```
+
 - No repository init.
+```
+TASK [mttjohnson.infra.restic : Initialize restic repository] ***********************************************************************************************
+skipping: [prometheus]
+```
+```
+TASK [mttjohnson.infra.restic : Initialize secondary restic repository (chunker params from primary)] *******************************************************
+skipping: [prometheus]
+```
+
 - No repo-id or sentinel warnings.
+```
+TASK [mttjohnson.infra.restic_restore : Report restore source plan] *****************************************************************************************
+ok: [prometheus] =>
+    msg: 'restore sources — configured: primary, secondary; present: primary, secondary;
+        reachable: primary, secondary'
+```
+
 - `prometheus_basic_auth` is restored with `chosen_source: primary` (snapshot times tie,
   so the primary wins).
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            prometheus_basic_auth
+        paths:             ['/root/prometheus_basic_auth_password.txt', '/root/prometheus_basic_auth_password_hash.txt']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/root/prometheus_basic_auth_password.txt', '/root/prometheus_basic_auth_password_hash.txt']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: primary, secondary
+        snapshot:          7774759b
+          @ 2026-11-12T04:12:02.085120171Z
+          (host=prometheus.hc.deney.io,
+           tags=['scheduled'])
+        chosen_source:     primary
+        targets_populated: False
+        action:            RESTORE
+```
+
 - `letsencrypt` and `prometheus` are skipped (populated).
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            letsencrypt
+        paths:             ['/data/letsencrypt']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/data/letsencrypt']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: primary, secondary
+        snapshot:          no matching snapshot
+        chosen_source:     (none)
+        targets_populated: True
+        action:            SKIP (target already populated; idempotency guard)
+```
+```
+TASK [mttjohnson.infra.restic_restore : Plan summary] *******************************************************************************************************
+ok: [prometheus] =>
+    msg: |-
+        bundle:            prometheus
+        paths:             ['/data/prometheus']
+        target:            (original)
+        selector_tags:     []
+        selector_host:     (any)
+        selector_paths:    ['/data/prometheus']
+        restore_required:  True
+        gate:              ok
+        repo:              reachable
+        sources_reachable: primary, secondary
+        snapshot:          no matching snapshot
+        chosen_source:     (none)
+        targets_populated: True
+        action:            SKIP (target already populated; idempotency guard)
+```
+
 - The host is blessed.
+```
+TASK [mttjohnson.infra.restic_restore : Bless host for backups (write blessed marker)] **********************************************************************
+--- before
++++ after: /etc/restic/blessed
+@@ -0,0 +1,6 @@
++{
++    "fresh_start": false,
++    "managed_by": "restic_restore role; restic jobs refuse to run without this file (see restic role RECOVERY.md)",
++    "recovery_expected": true,
++    "unsatisfied_critical": []
++}
+
+changed: [prometheus]
+```
 
 Then run the full play (check, then apply). Tofu won't run it for you (issue #3).
+
+```bash
+ansible-playbook playbooks/system.yml --diff --check
+ansible-playbook playbooks/system.yml --diff
+```
 
 **Verify:**
 

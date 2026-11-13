@@ -17,7 +17,7 @@ groups:
 sources_locked:
   - repo: git@github.com:mttjohnson/infra-components.git
     name: mttjohnson_infra
-    rev: 7c68e262aa957f71900e799b0c7edc1571fcf38c
+    rev: 162ee44cbcd05b4232f19f688ed5963c67998b66
     type: git
     params:
     sparse_paths:

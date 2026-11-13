@@ -82,6 +82,17 @@ restic_secondary_keep_yearly: 3
 # whose local /data/backups repo is gone restores automatically from the NAS
 # off-box copy — no manual env swap needed. See the restic role RECOVERY.md.
 restic_restore_bundles:
+  - name: acme_dns
+    paths:
+      - /etc/acme_dns_reg
+      - /etc/acmedns
+    snapshot_selector:
+      # Must match the snapshot's top-level backup paths exactly (restic --path
+      # is an AND filter over the literal paths handed to `restic backup`).
+      paths:
+        - /etc
+      latest: true
+    restore_required: true
   - name: letsencrypt               # required, used in task names & marker filename
     paths:                          # required, ≥1 absolute path
       - /data/letsencrypt
